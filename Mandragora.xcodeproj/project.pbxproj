@@ -1,0 +1,613 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		72A66BBA2E0A91E500171FA5 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 72A66BB92E0A91E500171FA5 /* Crypto */; };
+		72A66BBC2E0A91E800171FA5 /* X509 in Frameworks */ = {isa = PBXBuildFile; productRef = 72A66BBB2E0A91E800171FA5 /* X509 */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		72A66B952E0A8DA900171FA5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 72A66B7B2E0A8DA800171FA5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 72A66B822E0A8DA800171FA5;
+			remoteInfo = Mandragora;
+		};
+		72A66B9F2E0A8DA900171FA5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 72A66B7B2E0A8DA800171FA5 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 72A66B822E0A8DA800171FA5;
+			remoteInfo = Mandragora;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		72A66B832E0A8DA800171FA5 /* Mandragora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mandragora.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MandragoraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MandragoraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		72A66B852E0A8DA800171FA5 /* Mandragora */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Mandragora;
+			sourceTree = "<group>";
+		};
+		72A66B972E0A8DA900171FA5 /* MandragoraTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MandragoraTests;
+			sourceTree = "<group>";
+		};
+		72A66BA12E0A8DA900171FA5 /* MandragoraUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MandragoraUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		72A66B802E0A8DA800171FA5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				72A66BBC2E0A91E800171FA5 /* X509 in Frameworks */,
+				72A66BBA2E0A91E500171FA5 /* Crypto in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B912E0A8DA900171FA5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B9B2E0A8DA900171FA5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		72A66B7A2E0A8DA800171FA5 = {
+			isa = PBXGroup;
+			children = (
+				72A66B852E0A8DA800171FA5 /* Mandragora */,
+				72A66B972E0A8DA900171FA5 /* MandragoraTests */,
+				72A66BA12E0A8DA900171FA5 /* MandragoraUITests */,
+				72A66BB82E0A91E500171FA5 /* Frameworks */,
+				72A66B842E0A8DA800171FA5 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		72A66B842E0A8DA800171FA5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				72A66B832E0A8DA800171FA5 /* Mandragora.app */,
+				72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */,
+				72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		72A66BB82E0A91E500171FA5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		72A66B822E0A8DA800171FA5 /* Mandragora */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "Mandragora" */;
+			buildPhases = (
+				72A66B7F2E0A8DA800171FA5 /* Sources */,
+				72A66B802E0A8DA800171FA5 /* Frameworks */,
+				72A66B812E0A8DA800171FA5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				72A66B852E0A8DA800171FA5 /* Mandragora */,
+			);
+			name = Mandragora;
+			packageProductDependencies = (
+				72A66BB92E0A91E500171FA5 /* Crypto */,
+				72A66BBB2E0A91E800171FA5 /* X509 */,
+			);
+			productName = Mandragora;
+			productReference = 72A66B832E0A8DA800171FA5 /* Mandragora.app */;
+			productType = "com.apple.product-type.application";
+		};
+		72A66B932E0A8DA900171FA5 /* MandragoraTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraTests" */;
+			buildPhases = (
+				72A66B902E0A8DA900171FA5 /* Sources */,
+				72A66B912E0A8DA900171FA5 /* Frameworks */,
+				72A66B922E0A8DA900171FA5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				72A66B962E0A8DA900171FA5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				72A66B972E0A8DA900171FA5 /* MandragoraTests */,
+			);
+			name = MandragoraTests;
+			packageProductDependencies = (
+			);
+			productName = MandragoraTests;
+			productReference = 72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		72A66B9D2E0A8DA900171FA5 /* MandragoraUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraUITests" */;
+			buildPhases = (
+				72A66B9A2E0A8DA900171FA5 /* Sources */,
+				72A66B9B2E0A8DA900171FA5 /* Frameworks */,
+				72A66B9C2E0A8DA900171FA5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				72A66BA02E0A8DA900171FA5 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				72A66BA12E0A8DA900171FA5 /* MandragoraUITests */,
+			);
+			name = MandragoraUITests;
+			packageProductDependencies = (
+			);
+			productName = MandragoraUITests;
+			productReference = 72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		72A66B7B2E0A8DA800171FA5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1610;
+				LastUpgradeCheck = 1610;
+				TargetAttributes = {
+					72A66B822E0A8DA800171FA5 = {
+						CreatedOnToolsVersion = 16.1;
+					};
+					72A66B932E0A8DA900171FA5 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 72A66B822E0A8DA800171FA5;
+					};
+					72A66B9D2E0A8DA900171FA5 = {
+						CreatedOnToolsVersion = 16.1;
+						TestTargetID = 72A66B822E0A8DA800171FA5;
+					};
+				};
+			};
+			buildConfigurationList = 72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "Mandragora" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 72A66B7A2E0A8DA800171FA5;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				72A66BB62E0A919900171FA5 /* XCRemoteSwiftPackageReference "swift-crypto" */,
+				72A66BB72E0A91A000171FA5 /* XCRemoteSwiftPackageReference "swift-certificates" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 72A66B842E0A8DA800171FA5 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				72A66B822E0A8DA800171FA5 /* Mandragora */,
+				72A66B932E0A8DA900171FA5 /* MandragoraTests */,
+				72A66B9D2E0A8DA900171FA5 /* MandragoraUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		72A66B812E0A8DA800171FA5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B922E0A8DA900171FA5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B9C2E0A8DA900171FA5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		72A66B7F2E0A8DA800171FA5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B902E0A8DA900171FA5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		72A66B9A2E0A8DA900171FA5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		72A66B962E0A8DA900171FA5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 72A66B822E0A8DA800171FA5 /* Mandragora */;
+			targetProxy = 72A66B952E0A8DA900171FA5 /* PBXContainerItemProxy */;
+		};
+		72A66BA02E0A8DA900171FA5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 72A66B822E0A8DA800171FA5 /* Mandragora */;
+			targetProxy = 72A66B9F2E0A8DA900171FA5 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		72A66BA62E0A8DA900171FA5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		72A66BA72E0A8DA900171FA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		72A66BA92E0A8DA900171FA5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Mandragora/Mandragora.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Mandragora/Preview Content\"";
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Mandragora;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.bakunin.Mandragora;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		72A66BAA2E0A8DA900171FA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Mandragora/Mandragora.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Mandragora/Preview Content\"";
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Mandragora;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = me.bakunin.Mandragora;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		72A66BAC2E0A8DA900171FA5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mandragora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mandragora";
+			};
+			name = Debug;
+		};
+		72A66BAD2E0A8DA900171FA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mandragora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mandragora";
+			};
+			name = Release;
+		};
+		72A66BAF2E0A8DA900171FA5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Mandragora;
+			};
+			name = Debug;
+		};
+		72A66BB02E0A8DA900171FA5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6RQQWGRA2K;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Mandragora;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "Mandragora" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72A66BA62E0A8DA900171FA5 /* Debug */,
+				72A66BA72E0A8DA900171FA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "Mandragora" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72A66BA92E0A8DA900171FA5 /* Debug */,
+				72A66BAA2E0A8DA900171FA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72A66BAC2E0A8DA900171FA5 /* Debug */,
+				72A66BAD2E0A8DA900171FA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72A66BAF2E0A8DA900171FA5 /* Debug */,
+				72A66BB02E0A8DA900171FA5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		72A66BB62E0A919900171FA5 /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-crypto.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.12.3;
+			};
+		};
+		72A66BB72E0A91A000171FA5 /* XCRemoteSwiftPackageReference "swift-certificates" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-certificates.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		72A66BB92E0A91E500171FA5 /* Crypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72A66BB62E0A919900171FA5 /* XCRemoteSwiftPackageReference "swift-crypto" */;
+			productName = Crypto;
+		};
+		72A66BBB2E0A91E800171FA5 /* X509 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72A66BB72E0A91A000171FA5 /* XCRemoteSwiftPackageReference "swift-certificates" */;
+			productName = X509;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 72A66B7B2E0A8DA800171FA5 /* Project object */;
+}
