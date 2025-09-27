@@ -9,6 +9,7 @@ public enum MandragoraCoreError: Error, LocalizedError {
     case privateKeyNotFound
     case invalidCertificateData(reason: String)
     case enclaveOperationFailed(operation: String, underlyingError: Error)
+    case missingEntitlement
     
     public var errorDescription: String? {
         switch self {
@@ -20,6 +21,8 @@ public enum MandragoraCoreError: Error, LocalizedError {
             return "Invalid certificate data: \(reason)"
         case .enclaveOperationFailed(let operation, let error):
             return "Enclave operation '\(operation)' failed: \(error.localizedDescription)"
+        case .missingEntitlement:
+            return "App is missing required entitlements"
         }
     }
     
@@ -33,6 +36,8 @@ public enum MandragoraCoreError: Error, LocalizedError {
             return "The provided certificate data is malformed or invalid."
         case .enclaveOperationFailed:
             return "A Secure Enclave operation failed."
+        case .missingEntitlement:
+            return "The app is missing required entitlements for Secure Enclave access."
         }
     }
 }
@@ -59,11 +64,11 @@ public struct CertificateInfo {
 public struct MandragoraCore {
     private static let FIXED_TAG = "com.mandragora.single.identity"
     private let tag: String
-    private let keychainAccessGroup: String
+    // private let keychainAccessGroup: String
     
     public init() throws {
         self.tag = Self.FIXED_TAG
-        self.keychainAccessGroup = "6RQQWGRA2K.ru.rwb.Mandragora"
+        // self.keychainAccessGroup = "6RQQWGRA2K.ru.rwb.Mandragora"
     }
     
     // MARK: - Secure Enclave Operations
@@ -96,18 +101,26 @@ public struct MandragoraCore {
             kSecAttrApplicationLabel: tag,
             kSecAttrApplicationTag: tag.data(using: .utf8)!,
             kSecAttrLabel: tag,
-            kSecAttrAccessGroup: keychainAccessGroup,
+            // kSecAttrAccessGroup: keychainAccessGroup,
             kSecPrivateKeyAttrs: [
                 kSecAttrIsPermanent: true,
                 kSecAttrAccessControl: access,
                 kSecAttrIsExtractable: false,
-                kSecAttrAccessGroup: keychainAccessGroup
+                // kSecAttrAccessGroup: keychainAccessGroup
             ]
         ]
 
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateRandomKey(attributes, &error) else {
             let underlyingError = error!.takeRetainedValue() as Error
+            
+            // Check for specific error codes
+            if let nsError = underlyingError as NSError? {
+                if nsError.code == -34018 { // errSecMissingEntitlement
+                    throw MandragoraCoreError.missingEntitlement
+                }
+            }
+            
             throw NSError(domain: "SecureEnclaveError",
                          code: -50,
                          userInfo: [
@@ -128,7 +141,7 @@ public struct MandragoraCore {
             kSecAttrKeyClass       as String: kSecAttrKeyClassPrivate,
             kSecAttrApplicationTag as String: tagData,
             kSecAttrKeyType        as String: kSecAttrKeyTypeECSECPrimeRandom,
-            kSecAttrAccessGroup    as String: keychainAccessGroup,
+            // kSecAttrAccessGroup    as String: keychainAccessGroup,
             kSecReturnRef          as String: kCFBooleanTrue!
         ]
 
@@ -175,7 +188,7 @@ public struct MandragoraCore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup,
+            // kSecAttrAccessGroup as String: keychainAccessGroup,
             kSecValueRef as String: certificate
         ]
 
@@ -245,13 +258,13 @@ public struct MandragoraCore {
         let keyQuery: [String: Any] = [
             kSecClass as String: kSecClassKey,
             kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup
+            // kSecAttrAccessGroup as String: keychainAccessGroup
         ]
 
         let certQuery: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup
+            // kSecAttrAccessGroup as String: keychainAccessGroup
         ]
 
         SecItemDelete(keyQuery as CFDictionary)

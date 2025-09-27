@@ -104,16 +104,19 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                     Spacer()
+                    Button(action: { errorMessage = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                     Text("Click to copy")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Button(action: {
-                    #if os(macOS)
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
                     pasteboard.setString(errorMessage, forType: .string)
-                    #endif
                 }) {
                     Text(errorMessage)
                         .foregroundStyle(.red)
@@ -390,6 +393,25 @@ struct ContentView: View {
         } catch {
             // Debug print
             print("[Import Certificate Error]", error)
+            // Handle MandragoraCoreError.enclaveOperationFailed
+            if let mandragoraError = error as? MandragoraCoreError {
+                switch mandragoraError {
+                case .enclaveOperationFailed(_, let underlyingError):
+                    if let nsError = underlyingError as NSError?, nsError.domain == "OSStatus" {
+                        switch nsError.code {
+                        case -25299:
+                            errorMessage = "Certificate already exists: This certificate is already imported in the keychain."
+                        case -25300:
+                            errorMessage = "Certificate not found: No matching private key found for this certificate."
+                        default:
+                            errorMessage = "OSStatus error (code: \(nsError.code)): \(nsError.localizedDescription)"
+                        }
+                        return
+                    }
+                default: break
+                }
+            }
+            // Fallback: check for direct NSError
             if let nsError = error as NSError?, nsError.domain == "OSStatus" {
                 switch nsError.code {
                 case -25299:
