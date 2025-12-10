@@ -1,9 +1,4 @@
-//
-//  ContentView.swift
-//  Mandragora
-//
-//  Created by Timofey Mischenko on 31.05.2025.
-//
+// SPDX-License-Identifier: Apache-2.0
 
 import SwiftUI
 import UniformTypeIdentifiers
@@ -11,7 +6,7 @@ import AppKit
 
 struct ContentView: View {
     // Single instance of the library
-    @State private var core: MandragoraCore?
+    @State private var core: NailedCore?
     
     // Unix Socket Server
     @StateObject private var unixServer = UnixSigningServer(core: nil)
@@ -21,7 +16,7 @@ struct ContentView: View {
     @State private var hasCertificate: Bool = false
     @State private var certificateInfo: CertificateInfo?
     @State private var errorMessage: String = ""
-    
+
     // CSR generation state
     // @State private var commonName: String = ""
     @State private var generatedCSR: String = ""
@@ -46,32 +41,32 @@ struct ContentView: View {
         .task {
             initializeCore()
         }
-        .sheet(isPresented: $showingCSRGenerator) {
+        .sheet(isPresented: $showingCSRGenerator, content: {
             CSRGeneratorView(
                 core: core,
                 onGenerate: { commonName in
                     generateCSR(commonName: commonName)
                 }
             )
-        }
+        })
         .fileExporter(
             isPresented: $showingCSRExporter,
             document: CSRDocument(content: generatedCSR),
             contentType: .data,
-            defaultFilename: "certificate_request" // no need for .csr extension
-        ) { result in
+            defaultFilename: "certificate_request",
+            onCompletion: { result in
             switch result {
             case .success:
                 break
             case .failure(let error):
                 errorMessage = "Failed to save CSR: \(error.localizedDescription)"
             }
-        }
+        })
         .fileImporter(
             isPresented: $showingCertImporter,
             allowedContentTypes: [.x509Certificate, .data, .plainText],
-            allowsMultipleSelection: false
-        ) { result in
+            allowsMultipleSelection: false,
+            onCompletion: { result in
             switch result {
             case .success(let urls):
                 if let url = urls.first {
@@ -80,15 +75,15 @@ struct ContentView: View {
             case .failure(let error):
                 errorMessage = "Failed to import certificate: \(error.localizedDescription)"
             }
-        }
-        .alert("Delete Identity", isPresented: $showingDeleteConfirmation) {
+        })
+        .alert("Delete Identity", isPresented: $showingDeleteConfirmation, actions: {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
                 deleteIdentity()
             }
-        } message: {
+        }, message: {
             Text("Are you sure you want to delete the identity? This action cannot be undone.")
-        }
+        })
     }
     
     // MARK: - View Components
@@ -104,16 +99,19 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                     Spacer()
+                    Button(action: { errorMessage = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
                     Text("Click to copy")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Button(action: {
-                    #if os(macOS)
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
                     pasteboard.setString(errorMessage, forType: .string)
-                    #endif
                 }) {
                     Text(errorMessage)
                         .foregroundStyle(.red)
@@ -155,6 +153,43 @@ struct ContentView: View {
                     Text(unixServer.errorMessage)
                         .font(.caption)
                         .foregroundColor(.red)
+                }
+            }
+            
+            // Statistics
+            if unixServer.isRunning || unixServer.totalConnections > 0 {
+                Divider()
+                
+                HStack(spacing: 16) {
+                    StatBadge(
+                        icon: "cable.connector",
+                        label: "Connections",
+                        value: unixServer.totalConnections,
+                        color: .blue
+                    )
+                    
+                    StatBadge(
+                        icon: "signature",
+                        label: "Signatures",
+                        value: unixServer.signCommands,
+                        color: .purple
+                    )
+                    
+                    StatBadge(
+                        icon: "doc.badge.plus",
+                        label: "Certificates",
+                        value: unixServer.certificateCommands,
+                        color: .orange
+                    )
+                    
+                    if unixServer.errorCount > 0 {
+                        StatBadge(
+                            icon: "exclamationmark.triangle",
+                            label: "Errors",
+                            value: unixServer.errorCount,
+                            color: .red
+                        )
+                    }
                 }
             }
         }
@@ -307,7 +342,7 @@ struct ContentView: View {
     
     private func initializeCore() {
         do {
-            core = try MandragoraCore()
+            core = try NailedCore()
             updateServerCore()
             unixServer.startServer()
             updateIdentityState()
@@ -368,7 +403,11 @@ struct ContentView: View {
         do {
             let csrData = try core.generateCSR(commonName: commonName)
             let base64CSR = csrData.base64EncodedString()
-            generatedCSR = "-----BEGIN CERTIFICATE REQUEST-----\n\(base64CSR)\n-----END CERTIFICATE REQUEST-----"
+            generatedCSR = [
+                "-----BEGIN CERTIFICATE REQUEST-----",
+                base64CSR,
+                "-----END CERTIFICATE REQUEST-----"
+            ].joined(separator: "\n")
             showingCSRExporter = true
         } catch {
             errorMessage = "Failed to generate CSR: \(error.localizedDescription)"
@@ -390,6 +429,25 @@ struct ContentView: View {
         } catch {
             // Debug print
             print("[Import Certificate Error]", error)
+            // Handle NailedCoreError.enclaveOperationFailed
+            if let nailedError = error as? NailedCoreError {
+                switch nailedError {
+                case .enclaveOperationFailed(_, let underlyingError):
+                    if let nsError = underlyingError as NSError?, nsError.domain == "OSStatus" {
+                        switch nsError.code {
+                        case -25299:
+                            errorMessage = "Certificate already exists: This certificate is already imported in the keychain."
+                        case -25300:
+                            errorMessage = "Certificate not found: No matching private key found for this certificate."
+                        default:
+                            errorMessage = "OSStatus error (code: \(nsError.code)): \(nsError.localizedDescription)"
+                        }
+                        return
+                    }
+                default: break
+                }
+            }
+            // Fallback: check for direct NSError
             if let nsError = error as NSError?, nsError.domain == "OSStatus" {
                 switch nsError.code {
                 case -25299:
@@ -432,7 +490,7 @@ struct ContentView: View {
 
 // MARK: - CSR Generator View
 struct CSRGeneratorView: View {
-    let core: MandragoraCore?
+    let core: NailedCore?
     let onGenerate: (String) -> Void
     
     @State private var commonName: String = ""
@@ -474,6 +532,32 @@ struct CSRGeneratorView: View {
         .disabled(commonName.isEmpty || core == nil)
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
+    }
+}
+
+// MARK: - Stat Badge Component
+struct StatBadge: View {
+    let icon: String
+    let label: String
+    let value: Int
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.caption)
+                Text("\(value)")
+                    .font(.system(.body, design: .monospaced))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(color)
+            
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .frame(minWidth: 70)
     }
 }
 

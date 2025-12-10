@@ -1,0 +1,51 @@
+reporter: github-actions-logging
+
+excluded:
+  - Mandragora.xcodeproj
+  - Mandragora.xcodeproj/**
+  - Mandragora.xcodeproj/project.xcworkspace/**
+  - Mandragora/Assets.xcassets/**
+  - Mandragora/Preview Content/**
+  - .github/**
+  - docs/**
+  - .swiftpm/**
+  - build/**
+
+disabled_rules:
+  - trailing_comma
+  - todo
+
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - file_header
+
+line_length:
+  ignores_comments: true
+  ignores_urls: true
+  warning: 140
+  error: 200
+
+file_length:
+  warning: 1200
+  error: 2000
+
+type_body_length:
+  warning: 400
+  error: 800
+
+function_body_length:
+  warning: 100
+  error: 200
+
+trailing_whitespace:
+  ignores_empty_lines: true
+
+force_cast: error
+force_try: error
+
+file_header:
+  required_string: 'SPDX-License-Identifier: Apache-2.0'
+  severity: error
+
+

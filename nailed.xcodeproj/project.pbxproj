@@ -17,37 +17,50 @@
 			containerPortal = 72A66B7B2E0A8DA800171FA5 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 72A66B822E0A8DA800171FA5;
-			remoteInfo = Mandragora;
+			remoteInfo = nailed;
 		};
 		72A66B9F2E0A8DA900171FA5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 72A66B7B2E0A8DA800171FA5 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 72A66B822E0A8DA800171FA5;
-			remoteInfo = Mandragora;
+			remoteInfo = nailed;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		72A66B832E0A8DA800171FA5 /* Mandragora.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mandragora.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MandragoraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MandragoraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		72A66B832E0A8DA800171FA5 /* nailed.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nailed.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		72A66B942E0A8DA900171FA5 /* nailedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nailedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		72A66B9E2E0A8DA900171FA5 /* nailedUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = nailedUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		72F42A592E8835FA0017BDC5 /* Exceptions for "nailed" folder in "nailed" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				nailedUITestsLaunchTests.swift,
+			);
+			target = 72A66B822E0A8DA800171FA5 /* nailed */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		72A66B852E0A8DA800171FA5 /* Mandragora */ = {
+		72A66B852E0A8DA800171FA5 /* nailed */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Mandragora;
+			exceptions = (
+				72F42A592E8835FA0017BDC5 /* Exceptions for "nailed" folder in "nailed" target */,
+			);
+			path = nailed;
 			sourceTree = "<group>";
 		};
-		72A66B972E0A8DA900171FA5 /* MandragoraTests */ = {
+		72A66B972E0A8DA900171FA5 /* nailedTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = MandragoraTests;
+			path = nailedTests;
 			sourceTree = "<group>";
 		};
-		72A66BA12E0A8DA900171FA5 /* MandragoraUITests */ = {
+		72A66BA12E0A8DA900171FA5 /* nailedUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = MandragoraUITests;
+			path = nailedUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -82,9 +95,9 @@
 		72A66B7A2E0A8DA800171FA5 = {
 			isa = PBXGroup;
 			children = (
-				72A66B852E0A8DA800171FA5 /* Mandragora */,
-				72A66B972E0A8DA900171FA5 /* MandragoraTests */,
-				72A66BA12E0A8DA900171FA5 /* MandragoraUITests */,
+				72A66B852E0A8DA800171FA5 /* nailed */,
+				72A66B972E0A8DA900171FA5 /* nailedTests */,
+				72A66BA12E0A8DA900171FA5 /* nailedUITests */,
 				72A66BB82E0A91E500171FA5 /* Frameworks */,
 				72A66B842E0A8DA800171FA5 /* Products */,
 			);
@@ -93,9 +106,9 @@
 		72A66B842E0A8DA800171FA5 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				72A66B832E0A8DA800171FA5 /* Mandragora.app */,
-				72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */,
-				72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */,
+				72A66B832E0A8DA800171FA5 /* nailed.app */,
+				72A66B942E0A8DA900171FA5 /* nailedTests.xctest */,
+				72A66B9E2E0A8DA900171FA5 /* nailedUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -110,9 +123,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		72A66B822E0A8DA800171FA5 /* Mandragora */ = {
+		72A66B822E0A8DA800171FA5 /* nailed */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "Mandragora" */;
+			buildConfigurationList = 72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailed" */;
 			buildPhases = (
 				72A66B7F2E0A8DA800171FA5 /* Sources */,
 				72A66B802E0A8DA800171FA5 /* Frameworks */,
@@ -123,20 +136,20 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				72A66B852E0A8DA800171FA5 /* Mandragora */,
+				72A66B852E0A8DA800171FA5 /* nailed */,
 			);
-			name = Mandragora;
+			name = nailed;
 			packageProductDependencies = (
 				72A66BB92E0A91E500171FA5 /* Crypto */,
 				72A66BBB2E0A91E800171FA5 /* X509 */,
 			);
-			productName = Mandragora;
-			productReference = 72A66B832E0A8DA800171FA5 /* Mandragora.app */;
+			productName = nailed;
+			productReference = 72A66B832E0A8DA800171FA5 /* nailed.app */;
 			productType = "com.apple.product-type.application";
 		};
-		72A66B932E0A8DA900171FA5 /* MandragoraTests */ = {
+		72A66B932E0A8DA900171FA5 /* nailedTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraTests" */;
+			buildConfigurationList = 72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailedTests" */;
 			buildPhases = (
 				72A66B902E0A8DA900171FA5 /* Sources */,
 				72A66B912E0A8DA900171FA5 /* Frameworks */,
@@ -148,18 +161,18 @@
 				72A66B962E0A8DA900171FA5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				72A66B972E0A8DA900171FA5 /* MandragoraTests */,
+				72A66B972E0A8DA900171FA5 /* nailedTests */,
 			);
-			name = MandragoraTests;
+			name = nailedTests;
 			packageProductDependencies = (
 			);
-			productName = MandragoraTests;
-			productReference = 72A66B942E0A8DA900171FA5 /* MandragoraTests.xctest */;
+			productName = nailedTests;
+			productReference = 72A66B942E0A8DA900171FA5 /* nailedTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		72A66B9D2E0A8DA900171FA5 /* MandragoraUITests */ = {
+		72A66B9D2E0A8DA900171FA5 /* nailedUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraUITests" */;
+			buildConfigurationList = 72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailedUITests" */;
 			buildPhases = (
 				72A66B9A2E0A8DA900171FA5 /* Sources */,
 				72A66B9B2E0A8DA900171FA5 /* Frameworks */,
@@ -171,13 +184,13 @@
 				72A66BA02E0A8DA900171FA5 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				72A66BA12E0A8DA900171FA5 /* MandragoraUITests */,
+				72A66BA12E0A8DA900171FA5 /* nailedUITests */,
 			);
-			name = MandragoraUITests;
+			name = nailedUITests;
 			packageProductDependencies = (
 			);
-			productName = MandragoraUITests;
-			productReference = 72A66B9E2E0A8DA900171FA5 /* MandragoraUITests.xctest */;
+			productName = nailedUITests;
+			productReference = 72A66B9E2E0A8DA900171FA5 /* nailedUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -203,7 +216,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "Mandragora" */;
+			buildConfigurationList = 72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "nailed" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -221,9 +234,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				72A66B822E0A8DA800171FA5 /* Mandragora */,
-				72A66B932E0A8DA900171FA5 /* MandragoraTests */,
-				72A66B9D2E0A8DA900171FA5 /* MandragoraUITests */,
+				72A66B822E0A8DA800171FA5 /* nailed */,
+				72A66B932E0A8DA900171FA5 /* nailedTests */,
+				72A66B9D2E0A8DA900171FA5 /* nailedUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -279,12 +292,12 @@
 /* Begin PBXTargetDependency section */
 		72A66B962E0A8DA900171FA5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 72A66B822E0A8DA800171FA5 /* Mandragora */;
+			target = 72A66B822E0A8DA800171FA5 /* nailed */;
 			targetProxy = 72A66B952E0A8DA900171FA5 /* PBXContainerItemProxy */;
 		};
 		72A66BA02E0A8DA900171FA5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 72A66B822E0A8DA800171FA5 /* Mandragora */;
+			target = 72A66B822E0A8DA800171FA5 /* nailed */;
 			targetProxy = 72A66B9F2E0A8DA900171FA5 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -413,17 +426,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Mandragora/Mandragora.entitlements;
+				CODE_SIGN_ENTITLEMENTS = nailed/nailed.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Mandragora/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"nailed/Preview Content\"";
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Mandragora;
+				INFOPLIST_KEY_CFBundleDisplayName = nailed;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -431,8 +445,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.bakunin.Mandragora;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailed";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -443,17 +458,18 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Mandragora/Mandragora.entitlements;
+				CODE_SIGN_ENTITLEMENTS = nailed/nailed.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Mandragora/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"nailed/Preview Content\"";
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Mandragora;
+				INFOPLIST_KEY_CFBundleDisplayName = nailed;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -461,8 +477,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.bakunin.Mandragora;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailed";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -478,11 +495,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailedTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mandragora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mandragora";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/nailed.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/nailed";
 			};
 			name = Debug;
 		};
@@ -496,11 +513,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailedTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mandragora.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mandragora";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/nailed.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/nailed";
 			};
 			name = Release;
 		};
@@ -512,11 +529,11 @@
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailedUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Mandragora;
+				TEST_TARGET_NAME = nailed;
 			};
 			name = Debug;
 		};
@@ -528,18 +545,18 @@
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = ru.rwb.MandragoraUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ne-bknn.nailedUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_TARGET_NAME = Mandragora;
+				TEST_TARGET_NAME = nailed;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "Mandragora" */ = {
+		72A66B7E2E0A8DA800171FA5 /* Build configuration list for PBXProject "nailed" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				72A66BA62E0A8DA900171FA5 /* Debug */,
@@ -548,7 +565,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "Mandragora" */ = {
+		72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailed" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				72A66BA92E0A8DA900171FA5 /* Debug */,
@@ -557,7 +574,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraTests" */ = {
+		72A66BAB2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailedTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				72A66BAC2E0A8DA900171FA5 /* Debug */,
@@ -566,7 +583,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "MandragoraUITests" */ = {
+		72A66BAE2E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailedUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				72A66BAF2E0A8DA900171FA5 /* Debug */,

@@ -1,13 +1,8 @@
-//
-//  MandragoraUITestsLaunchTests.swift
-//  MandragoraUITests
-//
-//  Created by Timofey Mischenko on 24.06.2025.
-//
+// SPDX-License-Identifier: Apache-2.0
 
 import XCTest
 
-final class MandragoraUITestsLaunchTests: XCTestCase {
+final class NailedUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

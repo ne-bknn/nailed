@@ -1,14 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
 import Foundation
 import CryptoKit
 import X509
 import Security
 import SwiftASN1
 
-public enum MandragoraCoreError: Error, LocalizedError {
+public enum NailedCoreError: Error, LocalizedError {
     case identityNotFound
     case privateKeyNotFound
     case invalidCertificateData(reason: String)
     case enclaveOperationFailed(operation: String, underlyingError: Error)
+    case missingEntitlement
     
     public var errorDescription: String? {
         switch self {
@@ -20,6 +22,8 @@ public enum MandragoraCoreError: Error, LocalizedError {
             return "Invalid certificate data: \(reason)"
         case .enclaveOperationFailed(let operation, let error):
             return "Enclave operation '\(operation)' failed: \(error.localizedDescription)"
+        case .missingEntitlement:
+            return "App is missing required entitlements"
         }
     }
     
@@ -33,6 +37,8 @@ public enum MandragoraCoreError: Error, LocalizedError {
             return "The provided certificate data is malformed or invalid."
         case .enclaveOperationFailed:
             return "A Secure Enclave operation failed."
+        case .missingEntitlement:
+            return "The app is missing required entitlements for Secure Enclave access."
         }
     }
 }
@@ -56,14 +62,14 @@ public struct CertificateInfo {
     }
 }
 
-public struct MandragoraCore {
-    private static let FIXED_TAG = "com.mandragora.single.identity"
+public struct NailedCore {
+    private static let fixedTag = "com.nailed.single.identity"
     private let tag: String
-    private let keychainAccessGroup: String
+    // private let keychainAccessGroup: String
     
     public init() throws {
-        self.tag = Self.FIXED_TAG
-        self.keychainAccessGroup = "6RQQWGRA2K.ru.rwb.Mandragora"
+        self.tag = Self.fixedTag
+        // self.keychainAccessGroup = "6RQQWGRA2K.com.ne-bknn.nailed"
     }
     
     // MARK: - Secure Enclave Operations
@@ -82,32 +88,50 @@ public struct MandragoraCore {
                          userInfo: [NSLocalizedDescriptionKey: "Secure Enclave is not available on this device"])
         }
         
-        let access = SecAccessControlCreateWithFlags(
+        guard let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             [.privateKeyUsage, .biometryAny],
             nil
-        )!
+        ) else {
+            throw NSError(domain: "SecureEnclaveError",
+                          code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to create access control"])
+        }
+
+        guard let tagData = tag.data(using: .utf8) else {
+            throw NSError(domain: "SecureEnclaveError",
+                          code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
+        }
 
         let attributes: NSDictionary = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
             kSecAttrKeySizeInBits: 256,
             kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
             kSecAttrApplicationLabel: tag,
-            kSecAttrApplicationTag: tag.data(using: .utf8)!,
+            kSecAttrApplicationTag: tagData,
             kSecAttrLabel: tag,
-            kSecAttrAccessGroup: keychainAccessGroup,
+            // kSecAttrAccessGroup: keychainAccessGroup,
             kSecPrivateKeyAttrs: [
                 kSecAttrIsPermanent: true,
                 kSecAttrAccessControl: access,
                 kSecAttrIsExtractable: false,
-                kSecAttrAccessGroup: keychainAccessGroup
+                // kSecAttrAccessGroup: keychainAccessGroup
             ]
         ]
 
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateRandomKey(attributes, &error) else {
-            let underlyingError = error!.takeRetainedValue() as Error
+            let underlyingError: Error = (error?.takeRetainedValue() as Error?) ?? NSError(domain: "SecureEnclaveError", code: -50)
+            
+            // Check for specific error codes
+            if let nsError = underlyingError as NSError? {
+                if nsError.code == -34018 { // errSecMissingEntitlement
+                    throw NailedCoreError.missingEntitlement
+                }
+            }
+            
             throw NSError(domain: "SecureEnclaveError",
                          code: -50,
                          userInfo: [
@@ -121,15 +145,19 @@ public struct MandragoraCore {
     
     /// Get the private key from the Secure Enclave
     private func getPrivateKey() throws -> SecKey? {
-        let tagData = tag.data(using: .utf8)!
+        guard let tagData = tag.data(using: .utf8) else {
+            throw NSError(domain: "SecureEnclaveError",
+                          code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
+        }
 
         let query: [String: Any] = [
             kSecClass              as String: kSecClassKey,
             kSecAttrKeyClass       as String: kSecAttrKeyClassPrivate,
             kSecAttrApplicationTag as String: tagData,
             kSecAttrKeyType        as String: kSecAttrKeyTypeECSECPrimeRandom,
-            kSecAttrAccessGroup    as String: keychainAccessGroup,
-            kSecReturnRef          as String: kCFBooleanTrue!
+            // kSecAttrAccessGroup    as String: keychainAccessGroup,
+            kSecReturnRef          as String: kCFBooleanTrue
         ]
 
         var item: CFTypeRef?
@@ -149,16 +177,16 @@ public struct MandragoraCore {
     
     /// Generate a Certificate Signing Request using swift-certificates
     private func generateCSR(privateKey: SecKey, commonName: String) throws -> CertificateSigningRequest {
-        let subject = try! DistinguishedName([
+        let subject = try DistinguishedName([
             .init(type: .NameAttributes.commonName, utf8String: commonName),
         ])
         
         // Create a custom private key wrapper that uses the Secure Enclave key for signing
         let secureEnclavePrivateKey = try Certificate.PrivateKey(privateKey)
         
-        let extensions = try! Certificate.Extensions {}
+        let extensions = try Certificate.Extensions {}
         let extensionRequest = ExtensionRequest(extensions: extensions)
-        let attributes = try! CertificateSigningRequest.Attributes(
+        let attributes = try CertificateSigningRequest.Attributes(
             [.init(extensionRequest)]
         )
 
@@ -175,7 +203,7 @@ public struct MandragoraCore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup,
+            // kSecAttrAccessGroup as String: keychainAccessGroup,
             kSecValueRef as String: certificate
         ]
 
@@ -202,7 +230,10 @@ public struct MandragoraCore {
         
         var error: Unmanaged<CFError>?
         guard let signature = SecKeyCreateSignature(privateKey, alg, digest as CFData, &error) as Data? else {
-            throw error!.takeRetainedValue() as Error
+            if let err = error?.takeRetainedValue() {
+                throw err as Error
+            }
+            throw NSError(domain: "SecKeyError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create signature"])
         }
 
         return signature
@@ -217,10 +248,10 @@ public struct MandragoraCore {
         
         // Ask the keychain for a certificate whose public key hash equals that hash
         let query: [CFString: Any] = [
-            kSecClass:            kSecClassCertificate,
+            kSecClass: kSecClassCertificate,
             kSecAttrPublicKeyHash: pubKeyHash,
-            kSecMatchLimit:       kSecMatchLimitOne,
-            kSecReturnRef:        kCFBooleanTrue!
+            kSecMatchLimit: kSecMatchLimitOne,
+            kSecReturnRef: kCFBooleanTrue
         ]
 
         var result: CFTypeRef?
@@ -242,16 +273,20 @@ public struct MandragoraCore {
     
     /// Delete identity (key + certificates) from the keychain
     public func deleteIdentity() throws {
+        guard let tagData = tag.data(using: .utf8) else {
+            throw NSError(domain: "SecureEnclaveError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
+        }
+
         let keyQuery: [String: Any] = [
             kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup
+            kSecAttrApplicationTag as String: tagData,
+            // kSecAttrAccessGroup as String: keychainAccessGroup
         ]
 
         let certQuery: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
-            kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
-            kSecAttrAccessGroup as String: keychainAccessGroup
+            kSecAttrApplicationTag as String: tagData,
+            // kSecAttrAccessGroup as String: keychainAccessGroup
         ]
 
         SecItemDelete(keyQuery as CFDictionary)
@@ -271,9 +306,9 @@ public struct MandragoraCore {
         try? deleteIdentity()
         
         do {
-            let _ = try generateKey()
+            _ = try generateKey()
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "generate key",
                 underlyingError: error
             )
@@ -283,12 +318,12 @@ public struct MandragoraCore {
     /// Import a certificate for the identity
     public func importCertificate(certificateData: Data) throws {
         guard try hasIdentity() else {
-            throw MandragoraCoreError.identityNotFound
+            throw NailedCoreError.identityNotFound
         }
         
         // Convert certificate data to SecCertificate
         guard let secCertificate = SecCertificateCreateWithData(nil, certificateData as CFData) else {
-            throw MandragoraCoreError.invalidCertificateData(
+            throw NailedCoreError.invalidCertificateData(
                 reason: "Unable to create SecCertificate from provided data"
             )
         }
@@ -297,7 +332,7 @@ public struct MandragoraCore {
         do {
             try importCertificate(secCertificate)
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "import certificate",
                 underlyingError: error
             )
@@ -311,7 +346,7 @@ public struct MandragoraCore {
         }
         
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         return exportCertificate(matching: privateKey) != nil
@@ -320,7 +355,7 @@ public struct MandragoraCore {
     /// Generate a Certificate Signing Request for the identity
     public func generateCSR(commonName: String) throws -> Data {
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         // Generate CSR
@@ -328,7 +363,7 @@ public struct MandragoraCore {
         do {
             csr = try generateCSR(privateKey: privateKey, commonName: commonName)
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "generate CSR with CN=\(commonName)",
                 underlyingError: error
             )
@@ -340,7 +375,7 @@ public struct MandragoraCore {
             try csr.serialize(into: &serializer)
             return Data(serializer.serializedBytes)
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "serialize CSR",
                 underlyingError: error
             )
@@ -350,14 +385,14 @@ public struct MandragoraCore {
     /// Sign data using the identity's private key
     public func sign(data: Data) throws -> Data {
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         // Sign the data
         do {
             return try sign(digest: data, privateKey: privateKey)
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "sign data",
                 underlyingError: error
             )
@@ -371,7 +406,7 @@ public struct MandragoraCore {
         }
         
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         // Try to export the certificate data
@@ -400,7 +435,7 @@ public struct MandragoraCore {
                 notValidAfter: certificate.notValidAfter
             )
         } catch {
-            throw MandragoraCoreError.invalidCertificateData(
+            throw NailedCoreError.invalidCertificateData(
                 reason: "Failed to parse certificate: \(error.localizedDescription)"
             )
         }
@@ -413,7 +448,7 @@ public struct MandragoraCore {
         }
         
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         return exportCertificate(matching: privateKey)
@@ -422,13 +457,13 @@ public struct MandragoraCore {
     /// Export public key for the identity (convenience method)
     public func exportPublicKey() throws -> Data? {
         guard let privateKey = try getPrivateKey() else {
-            throw MandragoraCoreError.privateKeyNotFound
+            throw NailedCoreError.privateKeyNotFound
         }
         
         do {
             return try exportPublicKey(privateKey: privateKey)
         } catch {
-            throw MandragoraCoreError.enclaveOperationFailed(
+            throw NailedCoreError.enclaveOperationFailed(
                 operation: "export public key",
                 underlyingError: error
             )

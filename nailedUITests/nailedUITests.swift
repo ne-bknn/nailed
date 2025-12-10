@@ -1,13 +1,8 @@
-//
-//  MandragoraUITests.swift
-//  MandragoraUITests
-//
-//  Created by Timofey Mischenko on 24.06.2025.
-//
+// SPDX-License-Identifier: Apache-2.0
 
 import XCTest
 
-final class MandragoraUITests: XCTestCase {
+final class NailedUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

@@ -1,21 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+
 import Foundation
 import Network
 
 class UnixSigningServer: ObservableObject {
     @Published var isRunning = false
-    @Published var socketPath: String = "/tmp/mandragora_signing.sock"
+    @Published var socketPath: String = "/tmp/nailed_signing.sock"
     @Published var statusMessage = "Server stopped"
     @Published var errorMessage = ""
     
+    // Statistics
+    @Published var totalConnections: Int = 0
+    @Published var signCommands: Int = 0
+    @Published var certificateCommands: Int = 0
+    @Published var errorCount: Int = 0
+    
     private var listener: NWListener?
-    private var core: MandragoraCore?
+    private var core: NailedCore?
     private var activeConnections: [NWConnection] = []
     
-    init(core: MandragoraCore?) {
+    init(core: NailedCore?) {
         self.core = core
     }
     
-    func updateCore(_ core: MandragoraCore?) {
+    func updateCore(_ core: NailedCore?) {
         self.core = core
     }
     
@@ -95,6 +103,9 @@ class UnixSigningServer: ObservableObject {
     private func handleNewConnection(_ connection: NWConnection) {
         print("New management connection received")
         activeConnections.append(connection)
+        DispatchQueue.main.async {
+            self.totalConnections += 1
+        }
         
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
@@ -208,7 +219,8 @@ class UnixSigningServer: ObservableObject {
     }
     
     private func processPKSignCommand(_ message: String, connection: NWConnection) {
-        // Expected format: >PK_SIGN:WXRmZWN0ZWRTaWduaW5nRGF0YQ==,ECDSA
+        // Expected format: >PK_SIGN:<base64_digest>,ECDSA or >PK_SIGN:<base64_digest>
+        // The ",ECDSA" suffix is optional (Tunnelblick doesn't include it)
         
         // Remove the >PK_SIGN: prefix
         guard message.hasPrefix(">PK_SIGN:") else {
@@ -219,9 +231,15 @@ class UnixSigningServer: ObservableObject {
         let commandBody = String(message.dropFirst(9)) // Remove ">PK_SIGN:"
         let components = commandBody.components(separatedBy: ",")
         
-        guard components.count == 2,
-              components[1] == "ECDSA" else {
-            sendError("Invalid format. Expected: >PK_SIGN:<base64_digest>,ECDSA", to: connection)
+        // Accept both formats: with or without ",ECDSA" suffix
+        guard !components.isEmpty, !components[0].isEmpty else {
+            sendError("Invalid format. Expected: >PK_SIGN:<base64_digest>[,ECDSA]", to: connection)
+            return
+        }
+        
+        // If algorithm is specified, verify it's ECDSA (we only support ECDSA)
+        if components.count >= 2 && !components[1].isEmpty && components[1] != "ECDSA" {
+            sendError("Unsupported algorithm: \(components[1]). Only ECDSA is supported.", to: connection)
             return
         }
         
@@ -264,6 +282,10 @@ class UnixSigningServer: ObservableObject {
             let base64Signature = signature.base64EncodedString()
             let response = "pk-sig\r\n\(base64Signature)\r\nEND\r\n"
             sendResponse(response, to: connection)
+            
+            DispatchQueue.main.async {
+                self.signCommands += 1
+            }
             
             print("Sent signature: \(base64Signature)")
             
@@ -309,14 +331,21 @@ class UnixSigningServer: ObservableObject {
             // Convert to base64 for OpenVPN format
             let base64Certificate = certificateData.base64EncodedString()
             
+            // PEM format requires base64 to be wrapped at 64 characters per line
+            let wrappedBase64 = base64Certificate.chunked(into: 64).joined(separator: "\r\n")
+            
             // Return certificate in OpenVPN format:
             // certificate
             // -----BEGIN CERTIFICATE-----
             // <base64-encoded DER certificate>
             // -----END CERTIFICATE-----
             // END
-            let response = "certificate\r\n-----BEGIN CERTIFICATE-----\r\n\(base64Certificate)\r\n-----END CERTIFICATE-----\r\nEND\r\n"
+            let response = "certificate\r\n-----BEGIN CERTIFICATE-----\r\n\(wrappedBase64)\r\n-----END CERTIFICATE-----\r\nEND\r\n"
             sendResponse(response, to: connection)
+            
+            DispatchQueue.main.async {
+                self.certificateCommands += 1
+            }
             
             print("Sent certificate: \(base64Certificate.prefix(50))...")
             
@@ -326,7 +355,10 @@ class UnixSigningServer: ObservableObject {
     }
     
     private func sendResponse(_ response: String, to connection: NWConnection) {
-        let data = response.data(using: .utf8)!
+        guard let data = response.data(using: .utf8) else {
+            print("Failed to encode response as UTF-8")
+            return
+        }
         connection.send(content: data, completion: .contentProcessed { error in
             if let error = error {
                 print("Send error: \(error)")
@@ -342,6 +374,27 @@ class UnixSigningServer: ObservableObject {
         let response = "ERROR: \(error)\r\n"
         print("Sending error: \(error)")
         sendResponse(response, to: connection)
+        DispatchQueue.main.async {
+            self.errorCount += 1
+        }
         // Keep connection alive after sending error
+    }
+}
+
+// MARK: - String Extension for PEM formatting
+
+extension String {
+    /// Splits the string into chunks of specified size
+    func chunked(into size: Int) -> [String] {
+        var chunks: [String] = []
+        var startIndex = self.startIndex
+        
+        while startIndex < self.endIndex {
+            let endIndex = self.index(startIndex, offsetBy: size, limitedBy: self.endIndex) ?? self.endIndex
+            chunks.append(String(self[startIndex..<endIndex]))
+            startIndex = endIndex
+        }
+        
+        return chunks
     }
 }
