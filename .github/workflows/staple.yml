@@ -75,3 +75,19 @@ jobs:
           name: nailed-${{ inputs.run_id }}-stapled
           path: build/nailed.dmg
 
+      - name: Get tag from original run
+        id: get-tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api /repos/${{ github.repository }}/actions/runs/${{ inputs.run_id }} --jq '.head_branch')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Tag from original run: $TAG"
+
+      - name: Create/update GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-tag.outputs.tag }}
+          files: build/nailed.dmg
+          fail_on_unmatched_files: true
+
