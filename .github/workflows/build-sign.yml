@@ -126,7 +126,14 @@ jobs:
         run: |
           APP_PATH="build/export/nailed.app"
           DMG_PATH="build/nailed.dmg"
-          hdiutil create -volname nailed -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
+          DMG_CONTENTS="build/dmg-contents"
+          
+          # Create DMG contents folder with app and Applications symlink
+          mkdir -p "$DMG_CONTENTS"
+          cp -R "$APP_PATH" "$DMG_CONTENTS/"
+          ln -s /Applications "$DMG_CONTENTS/Applications"
+          
+          hdiutil create -volname nailed -srcfolder "$DMG_CONTENTS" -ov -format UDZO "$DMG_PATH"
           codesign --force --sign "${{ vars.CODE_SIGN_IDENTITY }}" build/nailed.dmg
 
       - name: Upload DMG artifact
