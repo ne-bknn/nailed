@@ -95,17 +95,16 @@ cat > "$BUILD_DIR/resources/welcome.html" << 'EOF'
             padding: 20px;
             line-height: 1.6;
         }
-        h1 { color: #333; }
-        .highlight { 
-            background: #f5f5f5; 
-            padding: 10px; 
-            border-radius: 5px;
-            margin: 15px 0;
+        h1 { margin-bottom: 20px; }
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        li {
+            padding: 8px 0;
         }
         code { 
-            background: #e8e8e8; 
-            padding: 2px 6px; 
-            border-radius: 3px;
             font-family: "SF Mono", Menlo, Monaco, monospace;
         }
     </style>
@@ -113,11 +112,10 @@ cat > "$BUILD_DIR/resources/welcome.html" << 'EOF'
 <body>
     <h1>Welcome to nailed</h1>
     <p>This installer will install:</p>
-    <div class="highlight">
-        <strong>nailed.app</strong> → /Applications<br>
-        <strong>libnailed_pkcs11.dylib</strong> → ~/.pkcs11_modules
-    </div>
-    <p>The PKCS#11 module allows you to use your Secure Enclave keys with applications that support PKCS#11, such as SSH, GPG, and web browsers.</p>
+    <ul>
+        <li><strong>nailed.app</strong> → <code>/Applications</code></li>
+        <li><strong>libnailed_pkcs11.dylib</strong> → <code>~/.pkcs11_modules</code></li>
+    </ul>
 </body>
 </html>
 EOF
@@ -133,17 +131,15 @@ cat > "$BUILD_DIR/resources/conclusion.html" << 'EOF'
             padding: 20px;
             line-height: 1.6;
         }
-        h1 { color: #28a745; }
-        .highlight { 
-            background: #f5f5f5; 
-            padding: 10px; 
-            border-radius: 5px;
-            margin: 15px 0;
+        h1 { margin-bottom: 20px; }
+        ol {
+            padding-left: 20px;
+            margin: 20px 0;
+        }
+        li {
+            padding: 6px 0;
         }
         code { 
-            background: #e8e8e8; 
-            padding: 2px 6px; 
-            border-radius: 3px;
             font-family: "SF Mono", Menlo, Monaco, monospace;
         }
     </style>
@@ -151,15 +147,13 @@ cat > "$BUILD_DIR/resources/conclusion.html" << 'EOF'
 <body>
     <h1>Installation Complete</h1>
     <p>nailed has been successfully installed.</p>
-    <div class="highlight">
-        <p><strong>Next steps:</strong></p>
-        <ol>
-            <li>Open <strong>nailed</strong> from your Applications folder</li>
-            <li>Create or import your Secure Enclave identity</li>
-            <li>Configure your applications to use the PKCS#11 module at:<br>
-                <code>~/.pkcs11_modules/libnailed_pkcs11.dylib</code></li>
-        </ol>
-    </div>
+    <p><strong>Next steps:</strong></p>
+    <ol>
+        <li>Open <strong>nailed</strong> from your Applications folder</li>
+        <li>Create or import your Secure Enclave identity</li>
+        <li>Configure your applications to use the PKCS#11 module at:<br>
+            <code>~/.pkcs11_modules/libnailed_pkcs11.dylib</code></li>
+    </ol>
 </body>
 </html>
 EOF
