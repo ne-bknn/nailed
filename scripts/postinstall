@@ -1,0 +1,46 @@
+#!/bin/bash
+# Post-installation script for nailed
+# This script runs after the main package installation
+
+set -e
+
+# Get the username of the user who initiated the installation
+# $USER and $HOME are set to root during installation, so we need to find the actual user
+if [ -n "$SUDO_USER" ]; then
+    INSTALL_USER="$SUDO_USER"
+elif [ -n "$USER" ] && [ "$USER" != "root" ]; then
+    INSTALL_USER="$USER"
+else
+    # Fallback: get the console user
+    INSTALL_USER=$(stat -f "%Su" /dev/console)
+fi
+
+# Get the user's home directory
+USER_HOME=$(dscl . -read /Users/"$INSTALL_USER" NFSHomeDirectory | awk '{print $2}')
+
+if [ -z "$USER_HOME" ] || [ ! -d "$USER_HOME" ]; then
+    echo "Error: Could not determine home directory for user $INSTALL_USER"
+    exit 1
+fi
+
+# Create the PKCS#11 modules directory
+PKCS11_DIR="$USER_HOME/.pkcs11_modules"
+mkdir -p "$PKCS11_DIR"
+
+# Copy the dylib from the package payload to the user's directory
+# The dylib is installed to /Library/Application Support/nailed by the main package
+DYLIB_SOURCE="/Library/Application Support/nailed/libnailed_pkcs11.dylib"
+DYLIB_DEST="$PKCS11_DIR/libnailed_pkcs11.dylib"
+
+if [ -f "$DYLIB_SOURCE" ]; then
+    cp "$DYLIB_SOURCE" "$DYLIB_DEST"
+    chmod 755 "$DYLIB_DEST"
+    chown "$INSTALL_USER" "$DYLIB_DEST"
+    chown "$INSTALL_USER" "$PKCS11_DIR"
+    echo "Installed libnailed_pkcs11.dylib to $DYLIB_DEST"
+else
+    echo "Warning: Source dylib not found at $DYLIB_SOURCE"
+fi
+
+exit 0
+
