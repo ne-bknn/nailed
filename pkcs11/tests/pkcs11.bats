@@ -120,8 +120,8 @@ pkcs11_tool() {
 }
 
 @test "can read certificate" {
-    # Try to read certificate
-    run pkcs11_tool --read-object --type cert --output-file /tmp/nailed_test_cert.der
+    # Try to read certificate (must specify label or id)
+    run pkcs11_tool --read-object --type cert --label SecureEnclave --output-file /tmp/nailed_test_cert.der
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
