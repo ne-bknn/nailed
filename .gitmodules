@@ -1,0 +1,3 @@
+[submodule "pkcs11/vendor/boringssl"]
+	path = pkcs11/vendor/boringssl
+	url = https://github.com/google/boringssl.git

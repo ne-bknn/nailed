@@ -29,7 +29,7 @@
 #endif
 
 /* Now include the official OASIS PKCS#11 headers */
-#include "vendor/pkcs11.h"
+#include "vendor/pkcs11/pkcs11.h"
 
 #endif /* _NAILED_PKCS11_PLATFORM_H_ */
 

@@ -13,31 +13,41 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
-#include <resolv.h>  /* b64_ntop, b64_pton */
 
-/* Debug logging */
-#ifdef NAILED_DEBUG
-#define DEBUG_LOG(fmt, ...) fprintf(stderr, "[nailed] " fmt "\n", ##__VA_ARGS__)
-#else
-#define DEBUG_LOG(fmt, ...) ((void)0)
-#endif
+/* BoringSSL */
+#include <openssl/base64.h>
+#include <openssl/x509.h>
+#include <openssl/evp.h>
+#include <openssl/ec_key.h>
 
-/* Base64 encode using BSD/macOS resolv.h */
+/* Logging */
+#include "nailed_log.h"
+#define DEBUG_LOG(fmt, ...) LOG_CLIENT(fmt, ##__VA_ARGS__)
+
+/* Base64 encode using BoringSSL */
 static int base64_encode(const uint8_t *input, size_t input_len,
                          char *output, size_t output_max)
 {
-    /* b64_ntop returns the length of the encoded string, or -1 on error */
-    int result = b64_ntop(input, input_len, output, output_max);
-    return result;
+    size_t out_len;
+    if (!EVP_EncodedLength(&out_len, input_len) || out_len > output_max) {
+        return -1;
+    }
+    return (int)EVP_EncodeBlock((uint8_t *)output, input, input_len);
 }
 
-/* Base64 decode using BSD/macOS resolv.h */
+/* Base64 decode using BoringSSL */
 static int base64_decode(const char *input,
                          uint8_t *output, size_t output_max)
 {
-    /* b64_pton returns the number of bytes written, or -1 on error */
-    int result = b64_pton(input, output, output_max);
-    return result;
+    size_t input_len = strlen(input);
+    size_t out_len;
+    if (!EVP_DecodedLength(&out_len, input_len) || out_len > output_max) {
+        return -1;
+    }
+    if (!EVP_DecodeBase64(output, &out_len, output_max, (const uint8_t *)input, input_len)) {
+        return -1;
+    }
+    return (int)out_len;
 }
 
 nailed_result_t nailed_client_init(nailed_client_t *client, const char *socket_path)
@@ -348,87 +358,71 @@ nailed_result_t nailed_client_get_certificate(nailed_client_t *client,
     return NAILED_OK;
 }
 
-/* Parse ASN.1 length */
-static size_t parse_asn1_length(const uint8_t *data, size_t *offset)
-{
-    if (data[*offset] < 0x80) {
-        return data[(*offset)++];
-    }
-    
-    size_t num_bytes = data[(*offset)++] & 0x7F;
-    size_t length = 0;
-    for (size_t i = 0; i < num_bytes; i++) {
-        length = (length << 8) | data[(*offset)++];
-    }
-    return length;
-}
-
-/* Extract EC point from X.509 certificate */
+/* Extract EC point from X.509 certificate using BoringSSL */
 static nailed_result_t extract_ec_point_from_cert(const uint8_t *cert, size_t cert_len,
                                                    uint8_t *ec_point, size_t *ec_point_len)
 {
-    /* Simple ASN.1 parsing to find the EC public key
-     * X.509 structure:
-     * SEQUENCE (Certificate)
-     *   SEQUENCE (TBSCertificate)
-     *     ... (version, serialNumber, signature, issuer, validity, subject)
-     *     SEQUENCE (SubjectPublicKeyInfo)
-     *       SEQUENCE (AlgorithmIdentifier)
-     *         OID (ecPublicKey: 1.2.840.10045.2.1)
-     *         OID (curve)
-     *       BIT STRING (public key)
-     */
-    
-    /* Look for ecPublicKey OID: 06 07 2A 86 48 CE 3D 02 01 */
-    static const uint8_t ec_pubkey_oid[] = { 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x02, 0x01 };
-    
     const uint8_t *p = cert;
-    const uint8_t *end = cert + cert_len;
-    
-    /* Search for the OID */
-    while (p < end - sizeof(ec_pubkey_oid)) {
-        if (memcmp(p, ec_pubkey_oid, sizeof(ec_pubkey_oid)) == 0) {
-            /* Found ecPublicKey OID, now find the BIT STRING */
-            p += sizeof(ec_pubkey_oid);
-            
-            /* Skip curve OID (SEQUENCE containing the curve OID) */
-            while (p < end - 2) {
-                if (*p == 0x03) { /* BIT STRING */
-                    p++; /* Skip tag */
-                    size_t offset = 0;
-                    const uint8_t *len_start = p;
-                    size_t bit_string_len = parse_asn1_length(p, &offset);
-                    p = len_start + offset;
-                    
-                    if (p >= end || bit_string_len < 2) {
-                        return NAILED_ERROR_PROTOCOL;
-                    }
-                    
-                    /* Skip unused bits byte */
-                    uint8_t unused_bits = *p++;
-                    bit_string_len--;
-                    (void)unused_bits;
-                    
-                    /* The public key point */
-                    if (*ec_point_len < bit_string_len) {
-                        *ec_point_len = bit_string_len;
-                        return NAILED_ERROR_BUFFER_TOO_SMALL;
-                    }
-                    
-                    memcpy(ec_point, p, bit_string_len);
-                    *ec_point_len = bit_string_len;
-                    
-                    DEBUG_LOG("Extracted EC point: %zu bytes", bit_string_len);
-                    return NAILED_OK;
-                }
-                p++;
-            }
-            break;
-        }
-        p++;
+    X509 *x509 = d2i_X509(NULL, &p, (long)cert_len);
+    if (!x509) {
+        DEBUG_LOG("Failed to parse X.509 certificate");
+        return NAILED_ERROR_PROTOCOL;
     }
     
-    return NAILED_ERROR_PROTOCOL;
+    EVP_PKEY *pkey = X509_get_pubkey(x509);
+    if (!pkey) {
+        DEBUG_LOG("Failed to get public key from certificate");
+        X509_free(x509);
+        return NAILED_ERROR_PROTOCOL;
+    }
+    
+    const EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(pkey);
+    if (!ec_key) {
+        DEBUG_LOG("Public key is not an EC key");
+        EVP_PKEY_free(pkey);
+        X509_free(x509);
+        return NAILED_ERROR_PROTOCOL;
+    }
+    
+    const EC_GROUP *group = EC_KEY_get0_group(ec_key);
+    const EC_POINT *point = EC_KEY_get0_public_key(ec_key);
+    if (!group || !point) {
+        DEBUG_LOG("Failed to get EC group or point");
+        EVP_PKEY_free(pkey);
+        X509_free(x509);
+        return NAILED_ERROR_PROTOCOL;
+    }
+    
+    /* Get uncompressed point encoding */
+    size_t point_len = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED, NULL, 0, NULL);
+    if (point_len == 0) {
+        DEBUG_LOG("Failed to get EC point length");
+        EVP_PKEY_free(pkey);
+        X509_free(x509);
+        return NAILED_ERROR_PROTOCOL;
+    }
+    
+    if (*ec_point_len < point_len) {
+        *ec_point_len = point_len;
+        EVP_PKEY_free(pkey);
+        X509_free(x509);
+        return NAILED_ERROR_BUFFER_TOO_SMALL;
+    }
+    
+    size_t written = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED, ec_point, *ec_point_len, NULL);
+    if (written == 0) {
+        DEBUG_LOG("Failed to encode EC point");
+        EVP_PKEY_free(pkey);
+        X509_free(x509);
+        return NAILED_ERROR_PROTOCOL;
+    }
+    
+    *ec_point_len = written;
+    DEBUG_LOG("Extracted EC point: %zu bytes", written);
+    
+    EVP_PKEY_free(pkey);
+    X509_free(x509);
+    return NAILED_OK;
 }
 
 nailed_result_t nailed_client_get_ec_point(nailed_client_t *client,

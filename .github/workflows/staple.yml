@@ -1,4 +1,4 @@
-name: Staple Notarized DMG
+name: Staple Notarized PKG
 
 # Run manually after a v* tag build completes and notarization succeeds
 
@@ -18,7 +18,7 @@ jobs:
   staple:
     runs-on: macos-14
     steps:
-      - name: Download DMG artifact
+      - name: Download PKG artifact
         uses: actions/download-artifact@v4
         with:
           name: nailed-${{ inputs.run_id }}
@@ -61,19 +61,19 @@ jobs:
             --timeout 10m
           
           # Staple the ticket
-          xcrun stapler staple build/nailed.dmg
+          xcrun stapler staple build/nailed.pkg
           
           # Verify
-          xcrun stapler validate build/nailed.dmg
+          xcrun stapler validate build/nailed.pkg
           
           # Cleanup
           rm -rf ~/private_keys
 
-      - name: Upload stapled DMG
+      - name: Upload stapled PKG
         uses: actions/upload-artifact@v4
         with:
           name: nailed-${{ inputs.run_id }}-stapled
-          path: build/nailed.dmg
+          path: build/nailed.pkg
 
       - name: Get tag from original run
         id: get-tag
@@ -88,6 +88,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get-tag.outputs.tag }}
-          files: build/nailed.dmg
+          files: build/nailed.pkg
           fail_on_unmatched_files: true
-
