@@ -258,6 +258,8 @@ CK_RV C_GetSlotList(CK_BBOOL tokenPresent, CK_SLOT_ID_PTR pSlotList, CK_ULONG_PT
 
 CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 {
+    DEBUG_LOG("C_GetSlotInfo: slotID=%lu", (unsigned long)slotID);
+    
     if (!g_initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
     if (slotID != 0) return CKR_SLOT_ID_INVALID;
     if (pInfo == NULL_PTR) return CKR_ARGUMENTS_BAD;
@@ -277,16 +279,20 @@ CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
     pInfo->firmwareVersion.major = 1;
     pInfo->firmwareVersion.minor = 0;
     
+    DEBUG_LOG("  -> flags=0x%lx, token_present=%d", (unsigned long)flags, (flags & CKF_TOKEN_PRESENT) ? 1 : 0);
     return CKR_OK;
 }
 
 CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
 {
+    DEBUG_LOG("C_GetTokenInfo: slotID=%lu", (unsigned long)slotID);
+    
     if (!g_initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
     if (slotID != 0) return CKR_SLOT_ID_INVALID;
     if (pInfo == NULL_PTR) return CKR_ARGUMENTS_BAD;
     
     if (!nailed_client_is_available(&g_client)) {
+        DEBUG_LOG("  -> CKR_TOKEN_NOT_PRESENT");
         return CKR_TOKEN_NOT_PRESENT;
     }
     
@@ -295,7 +301,9 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     pad_string(pInfo->model, NAILED_TOKEN_MODEL, 16);
     memcpy(pInfo->serialNumber, NAILED_TOKEN_SERIAL, 16);
     
-    pInfo->flags = CKF_TOKEN_INITIALIZED | CKF_PROTECTED_AUTHENTICATION_PATH | CKF_HW_SLOT;
+    /* Note: CKF_HW_SLOT is a slot flag, not a token flag - don't use it here!
+     * CKF_LOGIN_REQUIRED (0x04) is NOT set - login is optional for this token */
+    pInfo->flags = CKF_TOKEN_INITIALIZED | CKF_PROTECTED_AUTHENTICATION_PATH | CKF_USER_PIN_INITIALIZED;
     
     pInfo->ulMaxSessionCount = CK_EFFECTIVELY_INFINITE;
     pInfo->ulSessionCount = g_session_count;
@@ -313,6 +321,8 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     pInfo->firmwareVersion.minor = 0;
     memset(pInfo->utcTime, ' ', 16);
     
+    DEBUG_LOG("  -> label='%.32s', model='%.16s', serial='%.16s', flags=0x%lx",
+              pInfo->label, pInfo->model, pInfo->serialNumber, (unsigned long)pInfo->flags);
     return CKR_OK;
 }
 
@@ -668,7 +678,10 @@ CK_RV C_GetAttributeValue(CK_SESSION_HANDLE hSession, CK_OBJECT_HANDLE hObject,
                         break;
                     }
                     case CKA_ALWAYS_AUTHENTICATE: {
-                        CK_BBOOL val = CK_TRUE;
+                        /* Set to FALSE - biometric auth happens at Secure Enclave level,
+                         * not via PKCS#11 C_Login. Setting TRUE would cause apps to
+                         * prompt for PIN before every signing operation. */
+                        CK_BBOOL val = CK_FALSE;
                         if (attr->pValue && attr->ulValueLen >= sizeof(val)) {
                             memcpy(attr->pValue, &val, sizeof(val));
                         }
