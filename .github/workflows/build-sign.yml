@@ -259,3 +259,19 @@ jobs:
         with:
           name: nailed-${{ github.run_id }}-stapled
           path: build/nailed.pkg
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/v') && env.STAPLED == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          
+          # Rename pkg to include version
+          cp build/nailed.pkg "build/nailed-${VERSION}.pkg"
+          
+          # Create release with the stapled pkg
+          gh release create "$VERSION" \
+            --title "Nailed $VERSION" \
+            --generate-notes \
+            "build/nailed-${VERSION}.pkg"
