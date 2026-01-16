@@ -91,7 +91,7 @@ public struct NailedCore {
         guard let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-            [.privateKeyUsage, .biometryAny],
+            [.privateKeyUsage, .userPresence],
             nil
         ) else {
             throw NSError(domain: "SecureEnclaveError",
