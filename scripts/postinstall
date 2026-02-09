@@ -42,5 +42,23 @@ else
     echo "Warning: Source dylib not found at $DYLIB_SOURCE"
 fi
 
+# Create symlink for CLI access
+CLI_BINARY="/Applications/nailed.app/Contents/MacOS/nailed"
+CLI_SYMLINK="/usr/local/bin/nailed"
+
+if [ -f "$CLI_BINARY" ]; then
+    # Ensure /usr/local/bin exists
+    mkdir -p /usr/local/bin
+    
+    # Remove old symlink if it exists
+    [ -L "$CLI_SYMLINK" ] && rm -f "$CLI_SYMLINK"
+    
+    # Create new symlink
+    ln -sf "$CLI_BINARY" "$CLI_SYMLINK"
+    echo "Installed nailed CLI to $CLI_SYMLINK"
+else
+    echo "Warning: nailed binary not found at $CLI_BINARY"
+fi
+
 exit 0
 
