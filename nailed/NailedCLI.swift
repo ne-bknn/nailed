@@ -5,6 +5,8 @@ import Foundation
 /// Command-line interface for nailed — manage Secure Enclave identities without the GUI.
 enum NailedCLI {
     
+    private static let log = NailedLogger.shared
+    
     private static let commands: Set<String> = [
         "status", "generate-identity", "generate-csr",
         "import-certificate", "export-certificate", "delete-identity"
@@ -22,6 +24,7 @@ enum NailedCLI {
             exit(1)
         }
         
+        log.info("CLI command: \(command)", category: "cli")
         let subArgs = Array(arguments.dropFirst())
         
         switch command {
@@ -91,6 +94,7 @@ enum NailedCLI {
             
             exit(0)
         } catch {
+            log.error("Failed to query identity status: \(error.localizedDescription)", category: "cli")
             die("failed to query identity status: \(error.localizedDescription)")
         }
     }
@@ -109,6 +113,7 @@ enum NailedCLI {
             print("  Next step: generate a CSR with 'generate-csr <common-name>'")
             exit(0)
         } catch {
+            log.error("Failed to generate identity: \(error.localizedDescription)", category: "cli")
             die("failed to generate identity: \(error.localizedDescription)")
         }
     }
@@ -173,6 +178,7 @@ enum NailedCLI {
             
             exit(0)
         } catch {
+            log.error("Failed to generate CSR: \(error.localizedDescription)", category: "cli")
             die("failed to generate CSR: \(error.localizedDescription)")
         }
     }
@@ -228,17 +234,15 @@ enum NailedCLI {
             
             exit(0)
         } catch let error as NailedCoreError {
-            die(error.localizedDescription)
-        } catch {
-            let nsError = error as NSError
-            if nsError.domain == NSOSStatusErrorDomain {
-                switch nsError.code {
-                case -25299:
-                    die("certificate already exists in the keychain")
-                default:
-                    die("keychain error (OSStatus \(nsError.code)): \(nsError.localizedDescription)")
-                }
+            log.error("Certificate import error: \(error.localizedDescription)", category: "cli")
+            switch error {
+            case .certificateAlreadyExists:
+                die("certificate already exists in the keychain")
+            default:
+                die(error.localizedDescription)
             }
+        } catch {
+            log.error("Failed to import certificate: \(error.localizedDescription)", category: "cli")
             die("failed to import certificate: \(error.localizedDescription)")
         }
     }
@@ -294,6 +298,7 @@ enum NailedCLI {
             
             exit(0)
         } catch {
+            log.error("Failed to export certificate: \(error.localizedDescription)", category: "cli")
             die("failed to export certificate: \(error.localizedDescription)")
         }
     }
@@ -340,6 +345,7 @@ enum NailedCLI {
             print("Identity deleted.")
             exit(0)
         } catch {
+            log.error("Failed to delete identity: \(error.localizedDescription)", category: "cli")
             die("failed to delete identity: \(error.localizedDescription)")
         }
     }

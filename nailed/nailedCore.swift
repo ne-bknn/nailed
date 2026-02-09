@@ -8,8 +8,12 @@ import SwiftASN1
 public enum NailedCoreError: Error, LocalizedError {
     case identityNotFound
     case privateKeyNotFound
+    case secureEnclaveUnavailable
+    case accessControlFailed
     case invalidCertificateData(reason: String)
-    case enclaveOperationFailed(operation: String, underlyingError: Error)
+    case certificateAlreadyExists
+    case keychainError(operation: String, status: OSStatus)
+    case signingFailed(reason: String)
     case missingEntitlement
     
     public var errorDescription: String? {
@@ -18,10 +22,18 @@ public enum NailedCoreError: Error, LocalizedError {
             return "No identity found in Secure Enclave"
         case .privateKeyNotFound:
             return "Private key not found in Secure Enclave"
+        case .secureEnclaveUnavailable:
+            return "Secure Enclave is not available on this device"
+        case .accessControlFailed:
+            return "Failed to create access control for Secure Enclave key"
         case .invalidCertificateData(let reason):
             return "Invalid certificate data: \(reason)"
-        case .enclaveOperationFailed(let operation, let error):
-            return "Enclave operation '\(operation)' failed: \(error.localizedDescription)"
+        case .certificateAlreadyExists:
+            return "Certificate already exists in the keychain"
+        case .keychainError(let operation, let status):
+            return "Keychain operation '\(operation)' failed with status \(status)"
+        case .signingFailed(let reason):
+            return "Signing failed: \(reason)"
         case .missingEntitlement:
             return "App is missing required entitlements"
         }
@@ -33,10 +45,18 @@ public enum NailedCoreError: Error, LocalizedError {
             return "No identity exists in the Secure Enclave."
         case .privateKeyNotFound:
             return "The private key is not available in the Secure Enclave."
+        case .secureEnclaveUnavailable:
+            return "The Secure Enclave hardware is not available on this Mac."
+        case .accessControlFailed:
+            return "Could not configure access control flags for the Secure Enclave key."
         case .invalidCertificateData:
             return "The provided certificate data is malformed or invalid."
-        case .enclaveOperationFailed:
-            return "A Secure Enclave operation failed."
+        case .certificateAlreadyExists:
+            return "This certificate is already imported in the keychain."
+        case .keychainError:
+            return "A keychain operation returned an unexpected error."
+        case .signingFailed:
+            return "The Secure Enclave key could not produce a signature."
         case .missingEntitlement:
             return "The app is missing required entitlements for Secure Enclave access."
         }
@@ -65,11 +85,28 @@ public struct CertificateInfo {
 public struct NailedCore {
     private static let fixedTag = "com.nailed.single.identity"
     private let tag: String
+    private let log = NailedLogger.shared
     // private let keychainAccessGroup: String
     
     public init() throws {
         self.tag = Self.fixedTag
         // self.keychainAccessGroup = "6RQQWGRA2K.com.ne-bknn.nailed"
+    }
+    
+    // MARK: - Error Helpers
+    
+    /// Map a non-success OSStatus to the appropriate NailedCoreError
+    private static func throwKeychainError(_ status: OSStatus, operation: String) throws {
+        switch status {
+        case errSecSuccess:
+            return
+        case errSecDuplicateItem:
+            throw NailedCoreError.certificateAlreadyExists
+        case errSecMissingEntitlement:
+            throw NailedCoreError.missingEntitlement
+        default:
+            throw NailedCoreError.keychainError(operation: operation, status: status)
+        }
     }
     
     // MARK: - Secure Enclave Operations
@@ -81,11 +118,11 @@ public struct NailedCore {
     
     /// Generate a new key pair in the Secure Enclave
     private func generateKey() throws -> SecKey {
+        log.info("Generating new key pair in Secure Enclave", category: "core")
         // Check Secure Enclave availability
         guard isSecureEnclaveAvailable() else {
-            throw NSError(domain: "SecureEnclaveError",
-                         code: -1,
-                         userInfo: [NSLocalizedDescriptionKey: "Secure Enclave is not available on this device"])
+            log.error("Secure Enclave is not available", category: "core")
+            throw NailedCoreError.secureEnclaveUnavailable
         }
         
         guard let access = SecAccessControlCreateWithFlags(
@@ -94,16 +131,10 @@ public struct NailedCore {
             [.privateKeyUsage, .userPresence],
             nil
         ) else {
-            throw NSError(domain: "SecureEnclaveError",
-                          code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Failed to create access control"])
+            throw NailedCoreError.accessControlFailed
         }
 
-        guard let tagData = tag.data(using: .utf8) else {
-            throw NSError(domain: "SecureEnclaveError",
-                          code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
-        }
+        let tagData = Data(tag.utf8)
 
         let attributes: NSDictionary = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
@@ -123,33 +154,27 @@ public struct NailedCore {
 
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateRandomKey(attributes, &error) else {
-            let underlyingError: Error = (error?.takeRetainedValue() as Error?) ?? NSError(domain: "SecureEnclaveError", code: -50)
-            
-            // Check for specific error codes
-            if let nsError = underlyingError as NSError? {
+            if let cfError = error?.takeRetainedValue() {
+                let nsError = cfError as Error as NSError
+                log.error("SecKeyCreateRandomKey failed (code \(nsError.code)): \(nsError.localizedDescription)", category: "core")
                 if nsError.code == -34018 { // errSecMissingEntitlement
                     throw NailedCoreError.missingEntitlement
                 }
+                throw NailedCoreError.keychainError(
+                    operation: "generate key",
+                    status: OSStatus(nsError.code)
+                )
             }
-            
-            throw NSError(domain: "SecureEnclaveError",
-                         code: -50,
-                         userInfo: [
-                            NSLocalizedDescriptionKey: "failed to generate key",
-                            NSUnderlyingErrorKey: underlyingError
-                         ])
+            throw NailedCoreError.keychainError(operation: "generate key", status: errSecInternalError)
         }
 
+        log.info("Key pair generated successfully", category: "core")
         return key
     }
     
     /// Get the private key from the Secure Enclave
     private func getPrivateKey() throws -> SecKey? {
-        guard let tagData = tag.data(using: .utf8) else {
-            throw NSError(domain: "SecureEnclaveError",
-                          code: -1,
-                          userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
-        }
+        let tagData = Data(tag.utf8)
 
         let query: [String: Any] = [
             kSecClass              as String: kSecClassKey,
@@ -169,9 +194,8 @@ public struct NailedCore {
         case errSecItemNotFound:
             return nil
         default:
-            throw NSError(domain: NSOSStatusErrorDomain,
-                          code: Int(status),
-                          userInfo: [NSLocalizedDescriptionKey: "Failed to retrieve private key, status: \(status)"])
+            try Self.throwKeychainError(status, operation: "retrieve private key")
+            return nil // unreachable, throwKeychainError always throws for non-success
         }
     }
     
@@ -200,9 +224,10 @@ public struct NailedCore {
     
     /// Import a certificate into the keychain
     private func importCertificate(_ certificate: SecCertificate) throws {
+        log.info("Importing certificate into keychain", category: "core")
         let query: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
-            kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
+            kSecAttrApplicationTag as String: Data(tag.utf8),
             // kSecAttrAccessGroup as String: keychainAccessGroup,
             kSecValueRef as String: certificate
         ]
@@ -211,31 +236,38 @@ public struct NailedCore {
         let status = SecItemAdd(query as CFDictionary, nil)
 
         guard status == errSecSuccess else {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status))
+            log.error("Certificate import failed with OSStatus \(status)", category: "core")
+            try Self.throwKeychainError(status, operation: "import certificate")
+            return // unreachable
         }
+        log.info("Certificate imported successfully", category: "core")
     }
     
     /// Sign data using the private key
     private func sign(digest: Data, privateKey: SecKey) throws -> Data {
         precondition(digest.count == 32, "OpenVPN always supplies a 32-byte digest")
+        log.debug("Signing \(digest.count)-byte digest", category: "core")
         
         let alg = SecKeyAlgorithm.ecdsaSignatureDigestX962SHA256
         
         guard SecKeyIsAlgorithmSupported(privateKey, .sign, alg) else {
-            throw NSError(domain: NSOSStatusErrorDomain,
-                          code: Int(errSecUnimplemented),
-                          userInfo: [NSLocalizedDescriptionKey:
-                                     "Key does not support ECDSA-SHA256 digest signing"])
+            log.error("Key does not support ECDSA-SHA256 digest signing", category: "core")
+            throw NailedCoreError.signingFailed(reason: "Key does not support ECDSA-SHA256 digest signing")
         }
         
         var error: Unmanaged<CFError>?
         guard let signature = SecKeyCreateSignature(privateKey, alg, digest as CFData, &error) as Data? else {
-            if let err = error?.takeRetainedValue() {
-                throw err as Error
+            if let cfError = error?.takeRetainedValue() {
+                let nsError = cfError as Error as NSError
+                log.error("SecKeyCreateSignature failed (status \(nsError.code)): \(nsError.localizedDescription)", category: "core")
+                throw NailedCoreError.signingFailed(
+                    reason: "SecKeyCreateSignature failed (status \(nsError.code)): \(nsError.localizedDescription)"
+                )
             }
-            throw NSError(domain: "SecKeyError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create signature"])
+            throw NailedCoreError.signingFailed(reason: "SecKeyCreateSignature returned nil")
         }
 
+        log.debug("Signature produced: \(signature.count) bytes", category: "core")
         return signature
     }
     
@@ -273,9 +305,8 @@ public struct NailedCore {
     
     /// Delete identity (key + certificates) from the keychain
     public func deleteIdentity() throws {
-        guard let tagData = tag.data(using: .utf8) else {
-            throw NSError(domain: "SecureEnclaveError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode tag data"])
-        }
+        log.info("Deleting identity from keychain", category: "core")
+        let tagData = Data(tag.utf8)
 
         let keyQuery: [String: Any] = [
             kSecClass as String: kSecClassKey,
@@ -291,6 +322,7 @@ public struct NailedCore {
 
         SecItemDelete(keyQuery as CFDictionary)
         SecItemDelete(certQuery as CFDictionary)
+        log.info("Identity deleted", category: "core")
     }
     
     // MARK: - Public Interface
@@ -302,41 +334,29 @@ public struct NailedCore {
     
     /// Generate the single identity with a secure enclave key pair
     public func generateIdentity() throws {
+        log.info("Generating new identity", category: "core")
         // Delete any existing identity first
         try? deleteIdentity()
-        
-        do {
-            _ = try generateKey()
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "generate key",
-                underlyingError: error
-            )
-        }
+        _ = try generateKey()
     }
     
     /// Import a certificate for the identity
     public func importCertificate(certificateData: Data) throws {
+        log.info("Importing certificate (\(certificateData.count) bytes)", category: "core")
         guard try hasIdentity() else {
+            log.error("Cannot import certificate: no identity found", category: "core")
             throw NailedCoreError.identityNotFound
         }
         
         // Convert certificate data to SecCertificate
         guard let secCertificate = SecCertificateCreateWithData(nil, certificateData as CFData) else {
+            log.error("Invalid certificate data: unable to create SecCertificate", category: "core")
             throw NailedCoreError.invalidCertificateData(
                 reason: "Unable to create SecCertificate from provided data"
             )
         }
         
-        // Import certificate
-        do {
-            try importCertificate(secCertificate)
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "import certificate",
-                underlyingError: error
-            )
-        }
+        try importCertificate(secCertificate)
     }
     
     /// Check if the identity has a certificate
@@ -354,32 +374,17 @@ public struct NailedCore {
     
     /// Generate a Certificate Signing Request for the identity
     public func generateCSR(commonName: String) throws -> Data {
+        log.info("Generating CSR for CN=\(commonName)", category: "core")
         guard let privateKey = try getPrivateKey() else {
             throw NailedCoreError.privateKeyNotFound
         }
         
-        // Generate CSR
-        let csr: CertificateSigningRequest
-        do {
-            csr = try generateCSR(privateKey: privateKey, commonName: commonName)
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "generate CSR with CN=\(commonName)",
-                underlyingError: error
-            )
-        }
+        let csr = try generateCSR(privateKey: privateKey, commonName: commonName)
         
-        // Serialize to DER format
-        do {
-            var serializer = DER.Serializer()
-            try csr.serialize(into: &serializer)
-            return Data(serializer.serializedBytes)
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "serialize CSR",
-                underlyingError: error
-            )
-        }
+        var serializer = DER.Serializer()
+        try csr.serialize(into: &serializer)
+        log.info("CSR generated successfully", category: "core")
+        return Data(serializer.serializedBytes)
     }
     
     /// Sign data using the identity's private key
@@ -388,15 +393,7 @@ public struct NailedCore {
             throw NailedCoreError.privateKeyNotFound
         }
         
-        // Sign the data
-        do {
-            return try sign(digest: data, privateKey: privateKey)
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "sign data",
-                underlyingError: error
-            )
-        }
+        return try sign(digest: data, privateKey: privateKey)
     }
     
     // Get certificate information for the identity
@@ -435,6 +432,7 @@ public struct NailedCore {
                 notValidAfter: certificate.notValidAfter
             )
         } catch {
+            log.error("Failed to parse certificate: \(error.localizedDescription)", category: "core")
             throw NailedCoreError.invalidCertificateData(
                 reason: "Failed to parse certificate: \(error.localizedDescription)"
             )
@@ -460,14 +458,7 @@ public struct NailedCore {
             throw NailedCoreError.privateKeyNotFound
         }
         
-        do {
-            return try exportPublicKey(privateKey: privateKey)
-        } catch {
-            throw NailedCoreError.enclaveOperationFailed(
-                operation: "export public key",
-                underlyingError: error
-            )
-        }
+        return try exportPublicKey(privateKey: privateKey)
     }
     
     // MARK: - PEM Utilities

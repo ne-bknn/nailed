@@ -36,11 +36,24 @@ struct ContentView: View {
                 
                 actionButtonsSection
                 
-                Spacer(minLength: 8)
-                
-                Text("nailed \(AppVersion.version)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text("nailed \(AppVersion.version)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button(action: { shareLogFile() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.text")
+                            Text("Export Log")
+                        }
+                        .font(.caption2)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!FileManager.default.fileExists(atPath: NailedLogger.shared.logFileURL.path))
+                }
             }
             .padding()
         }
@@ -346,13 +359,17 @@ struct ContentView: View {
     
     // MARK: - Actions
     
+    private let log = NailedLogger.shared
+    
     private func initializeCore() {
         do {
             core = try NailedCore()
             updateServerCore()
             unixServer.startServer()
             updateIdentityState()
+            log.info("Core initialized successfully", category: "ui")
         } catch {
+            log.error("Failed to initialize core: \(error.localizedDescription)", category: "ui")
             errorMessage = "Failed to initialize core: \(error.localizedDescription)"
         }
     }
@@ -365,9 +382,11 @@ struct ContentView: View {
         guard let core = core else { return }
         
         do {
+            log.info("User requested identity generation", category: "ui")
             try core.generateIdentity()
             updateIdentityState()
         } catch {
+            log.error("Failed to generate identity: \(error.localizedDescription)", category: "ui")
             errorMessage = "Failed to generate identity: \(error.localizedDescription)"
         }
     }
@@ -394,11 +413,13 @@ struct ContentView: View {
         guard let core = core else { return }
         
         do {
+            log.info("User requested identity deletion", category: "ui")
             try core.deleteIdentity()
             hasIdentity = false
             hasCertificate = false
             certificateInfo = nil
         } catch {
+            log.error("Failed to delete identity: \(error.localizedDescription)", category: "ui")
             errorMessage = "Failed to delete identity: \(error.localizedDescription)"
         }
     }
@@ -407,6 +428,7 @@ struct ContentView: View {
         guard let core = core else { return }
         
         do {
+            log.info("User requested CSR generation for CN=\(commonName)", category: "ui")
             csrCommonName = commonName
             let csrData = try core.generateCSR(commonName: commonName)
             let base64CSR = csrData.base64EncodedString()
@@ -417,13 +439,16 @@ struct ContentView: View {
             ].joined(separator: "\n")
             showingCSRExporter = true
         } catch {
+            log.error("Failed to generate CSR: \(error.localizedDescription)", category: "ui")
             errorMessage = "Failed to generate CSR: \(error.localizedDescription)"
         }
     }
     
     private func importCertificateFromFile(url: URL) {
         guard let core = core else { return }
+        log.info("User importing certificate from \(url.lastPathComponent)", category: "ui")
         guard url.startAccessingSecurityScopedResource() else {
+            log.error("Failed to access security-scoped resource: \(url.path)", category: "ui")
             errorMessage = "Failed to access selected file"
             return
         }
@@ -433,46 +458,46 @@ struct ContentView: View {
             let certificateData = try parseCertificateData(from: fileData)
             try core.importCertificate(certificateData: certificateData)
             updateIdentityState() // Refresh to show the new certificate
+        } catch let error as NailedCoreError {
+            log.error("Certificate import error: \(error.localizedDescription)", category: "ui")
+            switch error {
+            case .certificateAlreadyExists:
+                errorMessage = "Certificate already exists in the keychain."
+            case .invalidCertificateData(let reason):
+                errorMessage = "Invalid certificate: \(reason)"
+            default:
+                errorMessage = "Failed to import certificate: \(error.localizedDescription)"
+            }
         } catch {
-            // Debug print
-            print("[Import Certificate Error]", error)
-            // Handle NailedCoreError.enclaveOperationFailed
-            if let nailedError = error as? NailedCoreError {
-                switch nailedError {
-                case .enclaveOperationFailed(_, let underlyingError):
-                    if let nsError = underlyingError as NSError?, nsError.domain == "OSStatus" {
-                        switch nsError.code {
-                        case -25299:
-                            errorMessage = "Certificate already exists: This certificate is already imported in the keychain."
-                        case -25300:
-                            errorMessage = "Certificate not found: No matching private key found for this certificate."
-                        default:
-                            errorMessage = "OSStatus error (code: \(nsError.code)): \(nsError.localizedDescription)"
-                        }
-                        return
-                    }
-                default: break
-                }
-            }
-            // Fallback: check for direct NSError
-            if let nsError = error as NSError?, nsError.domain == "OSStatus" {
-                switch nsError.code {
-                case -25299:
-                    errorMessage = "Certificate already exists: This certificate is already imported in the keychain."
-                case -25300:
-                    errorMessage = "Certificate not found: No matching private key found for this certificate."
-                default:
-                    errorMessage = "OSStatus error (code: \(nsError.code)): \(nsError.localizedDescription)"
-                }
-            } else {
-                let nsError = error as NSError
-                errorMessage = "Failed to import certificate: \(nsError.localizedDescription)\nDomain: \(nsError.domain)\nCode: \(nsError.code)"
-            }
+            log.error("Certificate import error: \(error.localizedDescription)", category: "ui")
+            errorMessage = "Failed to import certificate: \(error.localizedDescription)"
         }
     }
     
     private func parseCertificateData(from fileData: Data) -> Data {
         NailedCore.parseCertificateData(from: fileData)
+    }
+    
+    private func shareLogFile() {
+        let logURL = NailedLogger.shared.logFileURL
+        guard FileManager.default.fileExists(atPath: logURL.path) else { return }
+        
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = logURL.lastPathComponent
+        panel.allowedContentTypes = [.plainText]
+        panel.canCreateDirectories = true
+        
+        panel.begin { response in
+            guard response == .OK, let destURL = panel.url else { return }
+            do {
+                if FileManager.default.fileExists(atPath: destURL.path) {
+                    try FileManager.default.removeItem(at: destURL)
+                }
+                try FileManager.default.copyItem(at: logURL, to: destURL)
+            } catch {
+                log.error("Failed to save log file: \(error.localizedDescription)", category: "ui")
+            }
+        }
     }
 }
 

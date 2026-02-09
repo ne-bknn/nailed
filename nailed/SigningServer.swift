@@ -18,6 +18,7 @@ class UnixSigningServer: ObservableObject {
     private var listener: NWListener?
     private var core: NailedCore?
     private var activeConnections: [NWConnection] = []
+    private let log = NailedLogger.shared
     
     init(core: NailedCore?) {
         self.core = core
@@ -101,7 +102,7 @@ class UnixSigningServer: ObservableObject {
     }
     
     private func handleNewConnection(_ connection: NWConnection) {
-        print("New management connection received")
+        log.info("New management connection received", category: "server")
         activeConnections.append(connection)
         DispatchQueue.main.async {
             self.totalConnections += 1
@@ -110,13 +111,13 @@ class UnixSigningServer: ObservableObject {
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("Management connection ready")
+                self?.log.info("Management connection ready", category: "server")
                 self?.receiveMessage(from: connection)
             case .failed(let error):
-                print("Management connection failed: \(error)")
+                self?.log.error("Management connection failed: \(error)", category: "server")
                 self?.removeConnection(connection)
             case .cancelled:
-                print("Management connection cancelled")
+                self?.log.debug("Management connection cancelled", category: "server")
                 self?.removeConnection(connection)
             default:
                 break
@@ -135,23 +136,23 @@ class UnixSigningServer: ObservableObject {
     private func receiveMessage(from connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, isComplete, error in
             if let error = error {
-                print("Receive error: \(error)")
+                self?.log.error("Receive error: \(error)", category: "server")
                 self?.removeConnection(connection)
                 return
             }
             
             if let data = data, !data.isEmpty {
                 if let message = String(data: data, encoding: .utf8) {
-                    print("Received management message: '\(message)'")
+                    self?.log.debug("Received management message: '\(message)'", category: "server")
                     self?.processMessage(message.trimmingCharacters(in: .whitespacesAndNewlines), connection: connection)
                 } else {
-                    print("Failed to decode message as UTF-8")
+                    self?.log.warning("Failed to decode message as UTF-8", category: "server")
                     self?.sendError("Invalid UTF-8 encoding", to: connection)
                 }
             }
             
             if isComplete {
-                print("Management connection closed by client")
+                self?.log.info("Management connection closed by client", category: "server")
                 self?.removeConnection(connection)
             } else {
                 // Continue listening for more messages
@@ -161,7 +162,7 @@ class UnixSigningServer: ObservableObject {
     }
     
     private func processMessage(_ message: String, connection: NWConnection) {
-        print("Processing management message: '\(message)'")
+        log.debug("Processing management message: '\(message)'", category: "server")
         
         // Split message by lines and process each command that starts with '>'
         let lines = message.components(separatedBy: .newlines)
@@ -175,13 +176,13 @@ class UnixSigningServer: ObservableObject {
             // Only process lines that start with '>' (OpenVPN commands)
             guard trimmedLine.hasPrefix(">") else { continue }
             
-            print("Processing management command: '\(trimmedLine)'")
+            log.info("Processing management command: '\(trimmedLine)'", category: "server")
             
             // Handle >INFO command
             if trimmedLine.hasPrefix(">INFO") {
                 let response = "version 5\r\n"
                 sendResponse(response, to: connection)
-                print("Sent version info")
+                log.debug("Sent version info", category: "server")
                 continue
             }
             
@@ -201,7 +202,7 @@ class UnixSigningServer: ObservableObject {
             if trimmedLine.hasPrefix(">HOLD") {
                 let response = "SUCCESS: hold release\r\n"
                 sendResponse(response, to: connection)
-                print("Handled HOLD command")
+                log.debug("Handled HOLD command", category: "server")
                 continue
             }
             
@@ -209,7 +210,7 @@ class UnixSigningServer: ObservableObject {
             if trimmedLine.hasPrefix(">STATE") {
                 let response = "SUCCESS: state query\r\n"
                 sendResponse(response, to: connection)
-                print("Handled STATE command")
+                log.debug("Handled STATE command", category: "server")
                 continue
             }
             
@@ -251,7 +252,7 @@ class UnixSigningServer: ObservableObject {
             return
         }
         
-        print("Digest: \(digestBase64) -> \(digestData.count) bytes")
+        log.debug("Digest: \(digestBase64) -> \(digestData.count) bytes", category: "server")
         
         // Check if we have an identity with certificate
         guard let core = core else {
@@ -270,7 +271,7 @@ class UnixSigningServer: ObservableObject {
                 return
             }
             
-            print("Using single identity for signing")
+            log.info("Using single identity for signing", category: "server")
             
             // Sign the digest
             let signature = try core.sign(data: digestData)
@@ -287,7 +288,7 @@ class UnixSigningServer: ObservableObject {
                 self.signCommands += 1
             }
             
-            print("Sent signature: \(base64Signature)")
+            log.debug("Sent signature: \(base64Signature)", category: "server")
             
         } catch {
             sendError("Signing failed: \(error.localizedDescription)", to: connection)
@@ -297,7 +298,7 @@ class UnixSigningServer: ObservableObject {
     private func processNeedCertificateCommand(_ message: String, connection: NWConnection) {
         // Expected format: >NEED-CERTIFICATE:enclaved or >NEED-CERTIFICATE:enclaved:subject:...
         
-        print("Processing NEED-CERTIFICATE command: \(message)")
+        log.info("Processing NEED-CERTIFICATE command: \(message)", category: "server")
         
         // Check if it's requesting enclaved certificate
         guard message.hasPrefix(">NEED-CERTIFICATE:enclaved") else {
@@ -347,7 +348,7 @@ class UnixSigningServer: ObservableObject {
                 self.certificateCommands += 1
             }
             
-            print("Sent certificate: \(base64Certificate.prefix(50))...")
+            log.debug("Sent certificate: \(base64Certificate.prefix(50))...", category: "server")
             
         } catch {
             sendError("Certificate export failed: \(error.localizedDescription)", to: connection)
@@ -356,15 +357,14 @@ class UnixSigningServer: ObservableObject {
     
     private func sendResponse(_ response: String, to connection: NWConnection) {
         guard let data = response.data(using: .utf8) else {
-            print("Failed to encode response as UTF-8")
+            log.error("Failed to encode response as UTF-8", category: "server")
             return
         }
-        connection.send(content: data, completion: .contentProcessed { error in
+        connection.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("Send error: \(error)")
-                // Don't cancel connection on send errors, just log and continue
+                self?.log.error("Send error: \(error)", category: "server")
             } else {
-                print("Response sent successfully, waiting for more requests")
+                self?.log.debug("Response sent successfully, waiting for more requests", category: "server")
             }
             // Keep connection alive for more requests
         })
@@ -372,7 +372,7 @@ class UnixSigningServer: ObservableObject {
     
     private func sendError(_ error: String, to connection: NWConnection) {
         let response = "ERROR: \(error)\r\n"
-        print("Sending error: \(error)")
+        log.error("Sending error response: \(error)", category: "server")
         sendResponse(response, to: connection)
         DispatchQueue.main.async {
             self.errorCount += 1
