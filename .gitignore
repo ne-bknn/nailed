@@ -63,6 +63,3 @@ fastlane/test_output
 
 *.o
 *.dylib
-
-# Generated at build time by scripts/generate-version.sh
-nailed/GeneratedVersion.swift
