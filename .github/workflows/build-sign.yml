@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-tags: true
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1

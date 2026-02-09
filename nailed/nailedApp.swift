@@ -8,7 +8,6 @@
 
 import SwiftUI
 
-@main
 struct NailedApp: App {
     var body: some Scene {
         WindowGroup {

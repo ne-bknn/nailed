@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var errorMessage: String = ""
 
     // CSR generation state
-    // @State private var commonName: String = ""
+    @State private var csrCommonName: String = ""
     @State private var generatedCSR: String = ""
     @State private var showingCSRGenerator: Bool = false
     @State private var showingCSRExporter: Bool = false
@@ -35,6 +35,12 @@ struct ContentView: View {
                 identitySection
                 
                 actionButtonsSection
+                
+                Spacer(minLength: 8)
+                
+                Text("nailed \(AppVersion.version)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
             .padding()
         }
@@ -53,7 +59,7 @@ struct ContentView: View {
             isPresented: $showingCSRExporter,
             document: CSRDocument(content: generatedCSR),
             contentType: .data,
-            defaultFilename: "certificate_request",
+            defaultFilename: "\(csrCommonName).csr",
             onCompletion: { result in
             switch result {
             case .success:
@@ -401,6 +407,7 @@ struct ContentView: View {
         guard let core = core else { return }
         
         do {
+            csrCommonName = commonName
             let csrData = try core.generateCSR(commonName: commonName)
             let base64CSR = csrData.base64EncodedString()
             generatedCSR = [
@@ -464,27 +471,8 @@ struct ContentView: View {
         }
     }
     
-    private func parseCertificateData(from fileData: Data) throws -> Data {
-        // First, try to parse as string (PEM format)
-        if let pemString = String(data: fileData, encoding: .utf8) {
-            // Trim whitespace from beginning and end
-            let trimmedPemString = pemString.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Remove PEM headers and decode base64
-            let cleanPemString = trimmedPemString
-                .replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
-                .replacingOccurrences(of: "-----END CERTIFICATE-----", with: "")
-                .replacingOccurrences(of: "\n", with: "")
-                .replacingOccurrences(of: "\r", with: "")
-                .replacingOccurrences(of: " ", with: "")
-            
-            if let base64Data = Data(base64Encoded: cleanPemString) {
-                return base64Data
-            }
-        }
-        
-        // If PEM parsing failed, assume it's already in DER format
-        return fileData
+    private func parseCertificateData(from fileData: Data) -> Data {
+        NailedCore.parseCertificateData(from: fileData)
     }
 }
 

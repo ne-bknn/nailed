@@ -127,6 +127,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 72A66BA82E0A8DA900171FA5 /* Build configuration list for PBXNativeTarget "nailed" */;
 			buildPhases = (
+				72F42A5A2E8836000017BDC5 /* Generate Version */,
 				72A66B7F2E0A8DA800171FA5 /* Sources */,
 				72A66B802E0A8DA800171FA5 /* Frameworks */,
 				72A66B812E0A8DA800171FA5 /* Resources */,
@@ -264,6 +265,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		72F42A5A2E8836000017BDC5 /* Generate Version */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Version";
+			outputPaths = (
+				"$(SRCROOT)/nailed/GeneratedVersion.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${SRCROOT}/scripts/generate-version.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		72A66B7F2E0A8DA800171FA5 /* Sources */ = {
@@ -436,6 +456,7 @@
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = nailed;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -468,6 +489,7 @@
 				DEVELOPMENT_TEAM = 6RQQWGRA2K;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = nailed;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";

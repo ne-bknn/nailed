@@ -469,4 +469,35 @@ public struct NailedCore {
             )
         }
     }
+    
+    // MARK: - PEM Utilities
+    
+    /// Parse certificate data from PEM or DER format, returning DER bytes
+    public static func parseCertificateData(from fileData: Data) -> Data {
+        if let pemString = String(data: fileData, encoding: .utf8) {
+            let cleaned = pemString
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "-----BEGIN CERTIFICATE-----", with: "")
+                .replacingOccurrences(of: "-----END CERTIFICATE-----", with: "")
+                .replacingOccurrences(of: "\n", with: "")
+                .replacingOccurrences(of: "\r", with: "")
+                .replacingOccurrences(of: " ", with: "")
+            
+            if let decoded = Data(base64Encoded: cleaned) {
+                return decoded
+            }
+        }
+        return fileData
+    }
+    
+    /// Convert DER data to PEM string with the given label (e.g. "CERTIFICATE", "CERTIFICATE REQUEST")
+    public static func derToPEM(_ data: Data, label: String) -> String {
+        let base64 = data.base64EncodedString()
+        let lines = stride(from: 0, to: base64.count, by: 64).map { offset -> String in
+            let start = base64.index(base64.startIndex, offsetBy: offset)
+            let end = base64.index(start, offsetBy: 64, limitedBy: base64.endIndex) ?? base64.endIndex
+            return String(base64[start..<end])
+        }
+        return "-----BEGIN \(label)-----\n" + lines.joined(separator: "\n") + "\n-----END \(label)-----\n"
+    }
 }
