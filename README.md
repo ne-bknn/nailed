@@ -1,6 +1,6 @@
 # nailed
 
-Launch OpenVPN on Apple Silicone Macs with private keys stored on Secure Enclave chip.
+Use Secure Enclave on M* Macs as a generic PKCS11 secure token.
 
 <img width="1820" height="918" alt="interface" src="https://github.com/user-attachments/assets/3f7c33d0-f154-44b2-a979-a6a63c5ee283" />
 
@@ -9,27 +9,29 @@ Launch OpenVPN on Apple Silicone Macs with private keys stored on Secure Enclave
 
 ## Motivation
 
-On Linux you can use generic TPMs to store OpenVPN key material. Windows? Just use appropriate crypto provider and your VPN keys are unextractible, too. Apple's Secure Enclave? No go-to method exists.
+TL;DR: Main goal of this project is to make it possible to run OpenVPN with keys stored inside Secure Enclave. But it does work as a generic PKCS11 interface.
+
+You can run OpenVPN on Linux with key material unextractable on TPM using [tpm-pkcs11](https://github.com/tpm2-software/tpm2-pkcs11) or [tpm2-openssl provider](https://github.com/tpm2-software/tpm2-openssl). You can run OpenVPN on Windows with key material on TPM by just using appropriate [Crypto Provider](https://en.wikipedia.org/wiki/Cryptographic_Service_Provider). Modern Macs? Secure Enclave does not have standard interfaces (well, it [does](https://gist.github.com/arianvp/5f59f1783e3eaf1a2d4cd8e952bb4acf), but it does not solve my problem), you cannot run OpenVPN with keys inside Secure Enclave. 
 
 ## How to use
 
-You can find built, signed and notorized binaries in `Releases` of this repo (or you can build everything yourself). After that in GUI you can generate key, generate CSR. Sign the CSR with your CA, import the certificate.
+You can find built, signed and notarized binaries in `Releases` of this repo (or you can build everything yourself). After that, in the GUI you can generate a key, generate a CSR. Sign the CSR with your CA, then import the certificate.
 
-Update you openvpn config to include the following directives:
-```
-management /tmp/nailed_signing.sock unix
-management-client
-management-external-key
-management-external-cert enclaved
-```
+PKCS11 module is installed into `~/.pkcs11_modules` - you can use it with `OpenVPN Connect` right away.
+To run `openvpn` from the terminal:
+1) Find the pkcs11 id with `openvpn --show-pkcs11-ids ~/.pkcs11_modules/libnailed_pkcs11.dylib` and use
 
-...that's all.
+```
+pkcs11-id <serialized id>
+pkcs11-providers ~/.pkcs11_modules/libnailed_pkcs11.dylib
+```
 
 ## How it works
-You can deduce by config changes that this solution uses OpenVPN's `management` interface to delegate handshake signing to `nailed`. You can learn more in openvpn's manpages.
 
-## OpenVPN frontends' integration
+This solution started as an OpenVPN management server, but evolved into a PKCS11 module (that OpenVPN can use). Currently the pkcs11 shared library communicates with a signing server over a unix socket using the openvpn management protocol. 
 
-Unfortunately, all of the frontends for OpenVPN use management interface to control openvpn process. And there can be only one - no sharing. Thus, configuration files with `management` directives are not supported by OpenVPN Connect, Viscosity, Tunnelblick. I've [patched Tunnelblick](https://github.com/ne-bknn/Tunnelblick/) to support the integration, but:
-1) I am [not sure](https://github.com/Tunnelblick/Tunnelblick/pull/871) whether it will land in upstream Tunnelblick
-2) Tunnelblick's build infra is pretty complex and I am failing to re-sign my fork properly with my own keys. Maybe later.
+## Roadmap
+
+Currently, I have two changes planned:
+1) Switch from "OpenVPN Management Protocol over Unix Socket" to "Background Service available over XPC"
+2) Introduce App Attestation with configurable backend. My hypothesis is that app attestation can work as a surrogate [key attestation](https://www.security-embedded.com/blog/2021/5/2/under-the-hood-webauthn-in-safari); I may be wrong. We'll see. 
