@@ -63,3 +63,11 @@ fastlane/test_output
 
 *.o
 *.dylib
+
+*.csr
+*.srl
+*.profraw
+*.key
+*.pem
+*.crt
+build/
