@@ -58,8 +58,8 @@ struct ContentView: View {
         .fileExporter(
             isPresented: $showingCSRExporter,
             document: CSRDocument(content: generatedCSR),
-            contentType: .data,
-            defaultFilename: "\(csrCommonName).csr",
+            contentType: .certificateSigningRequest,
+            defaultFilename: csrCommonName,
             onCompletion: { result in
             switch result {
             case .success:
@@ -549,9 +549,16 @@ struct StatBadge: View {
     }
 }
 
+// MARK: - UTType for CSR files
+extension UTType {
+    static var certificateSigningRequest: UTType {
+        UTType(filenameExtension: "csr") ?? .data
+    }
+}
+
 // MARK: - CSR Document for File Export
 struct CSRDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data] }
+    static var readableContentTypes: [UTType] { [.certificateSigningRequest] }
     
     var content: String
     
