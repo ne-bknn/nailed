@@ -5,25 +5,13 @@ import UniformTypeIdentifiers
 import AppKit
 
 struct ContentView: View {
-    // Single instance of the library
-    @State private var core: NailedCore?
-    
-    // Unix Socket Server
-    @StateObject private var unixServer = UnixSigningServer(core: nil)
-    
-    // UI-state for single identity
-    @State private var hasIdentity: Bool = false
-    @State private var hasCertificate: Bool = false
-    @State private var certificateInfo: CertificateInfo?
-    @State private var errorMessage: String = ""
+    @EnvironmentObject private var appService: AppService
 
-    // CSR generation state
+    // UI-only presentation state
     @State private var csrCommonName: String = ""
     @State private var generatedCSR: String = ""
     @State private var showingCSRGenerator: Bool = false
     @State private var showingCSRExporter: Bool = false
-    
-    // Certificate import state
     @State private var showingCertImporter: Bool = false
     @State private var showingDeleteConfirmation: Bool = false
 
@@ -57,12 +45,9 @@ struct ContentView: View {
             }
             .padding()
         }
-        .task {
-            initializeCore()
-        }
         .sheet(isPresented: $showingCSRGenerator, content: {
             CSRGeneratorView(
-                core: core,
+                isReady: appService.isReady,
                 onGenerate: { commonName in
                     generateCSR(commonName: commonName)
                 }
@@ -78,7 +63,7 @@ struct ContentView: View {
             case .success:
                 break
             case .failure(let error):
-                errorMessage = "Failed to save CSR: \(error.localizedDescription)"
+                appService.errorMessage = "Failed to save CSR: \(error.localizedDescription)"
             }
         })
         .fileImporter(
@@ -89,16 +74,16 @@ struct ContentView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
-                    importCertificateFromFile(url: url)
+                    appService.importCertificate(from: url)
                 }
             case .failure(let error):
-                errorMessage = "Failed to import certificate: \(error.localizedDescription)"
+                appService.errorMessage = "Failed to import certificate: \(error.localizedDescription)"
             }
         })
         .alert("Delete Identity", isPresented: $showingDeleteConfirmation, actions: {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
-                deleteIdentity()
+                appService.deleteIdentity()
             }
         }, message: {
             Text("Are you sure you want to delete the identity? This action cannot be undone.")
@@ -109,7 +94,7 @@ struct ContentView: View {
     
     @ViewBuilder
     private var errorSection: some View {
-        if !errorMessage.isEmpty {
+        if !appService.errorMessage.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle")
@@ -118,7 +103,7 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundColor(.red)
                     Spacer()
-                    Button(action: { errorMessage = "" }) {
+                    Button(action: { appService.errorMessage = "" }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
@@ -130,9 +115,9 @@ struct ContentView: View {
                 Button(action: {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
-                    pasteboard.setString(errorMessage, forType: .string)
+                    pasteboard.setString(appService.errorMessage, forType: .string)
                 }) {
-                    Text(errorMessage)
+                    Text(appService.errorMessage)
                         .foregroundStyle(.red)
                         .font(.footnote)
                         .multilineTextAlignment(.leading)
@@ -162,50 +147,50 @@ struct ContentView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Image(systemName: unixServer.isRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(unixServer.isRunning ? .green : .red)
-                    Text(unixServer.statusMessage)
+                    Image(systemName: appService.server.isRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(appService.server.isRunning ? .green : .red)
+                    Text(appService.server.statusMessage)
                         .font(.body)
                 }
                 
-                if !unixServer.errorMessage.isEmpty {
-                    Text(unixServer.errorMessage)
+                if !appService.server.errorMessage.isEmpty {
+                    Text(appService.server.errorMessage)
                         .font(.caption)
                         .foregroundColor(.red)
                 }
             }
             
             // Statistics
-            if unixServer.isRunning || unixServer.totalConnections > 0 {
+            if appService.server.isRunning || appService.server.totalConnections > 0 {
                 Divider()
                 
                 HStack(spacing: 16) {
                     StatBadge(
                         icon: "cable.connector",
                         label: "Connections",
-                        value: unixServer.totalConnections,
+                        value: appService.server.totalConnections,
                         color: .blue
                     )
                     
                     StatBadge(
                         icon: "signature",
                         label: "Signatures",
-                        value: unixServer.signCommands,
+                        value: appService.server.signCommands,
                         color: .purple
                     )
                     
                     StatBadge(
                         icon: "doc.badge.plus",
                         label: "Certificates",
-                        value: unixServer.certificateCommands,
+                        value: appService.server.certificateCommands,
                         color: .orange
                     )
                     
-                    if unixServer.errorCount > 0 {
+                    if appService.server.errorCount > 0 {
                         StatBadge(
                             icon: "exclamationmark.triangle",
                             label: "Errors",
-                            value: unixServer.errorCount,
+                            value: appService.server.errorCount,
                             color: .red
                         )
                     }
@@ -215,14 +200,14 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(
-            unixServer.isRunning ?
+            appService.server.isRunning ?
             Color.green.opacity(0.15) :
             Color.gray.opacity(0.1)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
-                    unixServer.isRunning ?
+                    appService.server.isRunning ?
                     Color.green.opacity(0.3) :
                     Color.clear,
                     lineWidth: 2
@@ -233,7 +218,7 @@ struct ContentView: View {
     
     @ViewBuilder
     private var identitySection: some View {
-        if hasIdentity {
+        if appService.hasIdentity {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Identity Status:")
                     .font(.headline)
@@ -247,14 +232,14 @@ struct ContentView: View {
                     }
                     
                     HStack {
-                        Image(systemName: hasCertificate ? "checkmark.seal.fill" : "xmark.seal.fill")
-                            .foregroundColor(hasCertificate ? .green : .red)
-                        Text("Certificate: \(hasCertificate ? "Available" : "Not available")")
+                        Image(systemName: appService.hasCertificate ? "checkmark.seal.fill" : "xmark.seal.fill")
+                            .foregroundColor(appService.hasCertificate ? .green : .red)
+                        Text("Certificate: \(appService.hasCertificate ? "Available" : "Not available")")
                             .font(.body)
-                            .fontWeight(hasCertificate ? .semibold : .regular)
+                            .fontWeight(appService.hasCertificate ? .semibold : .regular)
                     }
                     
-                    if let certInfo = certificateInfo {
+                    if let certInfo = appService.certificateInfo {
                         VStack(alignment: .leading, spacing: 2) {
                             if let commonName = certInfo.commonName {
                                 Text("CN: \(commonName)")
@@ -315,14 +300,14 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
             .background(
-                hasCertificate ?
+                appService.hasCertificate ?
                 Color.green.opacity(0.15) :
                 Color.gray.opacity(0.1)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(
-                        hasCertificate ?
+                        appService.hasCertificate ?
                         Color.green.opacity(0.3) :
                         Color.clear,
                         lineWidth: 2
@@ -342,142 +327,31 @@ struct ContentView: View {
     
     @ViewBuilder
     private var actionButtonsSection: some View {
-        if !hasIdentity {
+        if !appService.hasIdentity {
             Button(action: {
-                generateIdentity()
+                appService.generateIdentity()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: "key.fill")
                     Text("Generate Identity")
                 }
             }
-            .disabled(core == nil)
+            .disabled(!appService.isReady)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
         }
     }
     
-    // MARK: - Actions
-    
-    private let log = NailedLogger.shared
-    
-    private func initializeCore() {
-        do {
-            core = try NailedCore()
-            updateServerCore()
-            unixServer.startServer()
-            updateIdentityState()
-            log.info("Core initialized successfully", category: "ui")
-        } catch {
-            log.error("Failed to initialize core: \(error.localizedDescription)", category: "ui")
-            errorMessage = "Failed to initialize core: \(error.localizedDescription)"
-        }
-    }
-    
-    private func updateServerCore() {
-        unixServer.updateCore(core)
-    }
-    
-    private func generateIdentity() {
-        guard let core = core else { return }
-        
-        do {
-            log.info("User requested identity generation", category: "ui")
-            try core.generateIdentity()
-            updateIdentityState()
-        } catch {
-            log.error("Failed to generate identity: \(error.localizedDescription)", category: "ui")
-            errorMessage = "Failed to generate identity: \(error.localizedDescription)"
-        }
-    }
-    
-    private func updateIdentityState() {
-        guard let core = core else { return }
-        
-        do {
-            hasIdentity = try core.hasIdentity()
-            
-            if hasIdentity {
-                hasCertificate = try core.hasCertificate()
-                certificateInfo = try core.getCertificateInfo()
-            } else {
-                hasCertificate = false
-                certificateInfo = nil
-            }
-        } catch {
-            errorMessage = "Failed to check identity status: \(error.localizedDescription)"
-        }
-    }
-    
-    private func deleteIdentity() {
-        guard let core = core else { return }
-        
-        do {
-            log.info("User requested identity deletion", category: "ui")
-            try core.deleteIdentity()
-            hasIdentity = false
-            hasCertificate = false
-            certificateInfo = nil
-        } catch {
-            log.error("Failed to delete identity: \(error.localizedDescription)", category: "ui")
-            errorMessage = "Failed to delete identity: \(error.localizedDescription)"
-        }
-    }
-    
+    // MARK: - Local UI actions
+
     private func generateCSR(commonName: String) {
-        guard let core = core else { return }
-        
-        do {
-            log.info("User requested CSR generation for CN=\(commonName)", category: "ui")
-            csrCommonName = commonName
-            let csrData = try core.generateCSR(commonName: commonName)
-            let base64CSR = csrData.base64EncodedString()
-            generatedCSR = [
-                "-----BEGIN CERTIFICATE REQUEST-----",
-                base64CSR,
-                "-----END CERTIFICATE REQUEST-----"
-            ].joined(separator: "\n")
+        csrCommonName = commonName
+        if let pem = appService.generateCSR(commonName: commonName) {
+            generatedCSR = pem
             showingCSRExporter = true
-        } catch {
-            log.error("Failed to generate CSR: \(error.localizedDescription)", category: "ui")
-            errorMessage = "Failed to generate CSR: \(error.localizedDescription)"
         }
     }
-    
-    private func importCertificateFromFile(url: URL) {
-        guard let core = core else { return }
-        log.info("User importing certificate from \(url.lastPathComponent)", category: "ui")
-        guard url.startAccessingSecurityScopedResource() else {
-            log.error("Failed to access security-scoped resource: \(url.path)", category: "ui")
-            errorMessage = "Failed to access selected file"
-            return
-        }
-        defer { url.stopAccessingSecurityScopedResource() }
-        do {
-            let fileData = try Data(contentsOf: url)
-            let certificateData = try parseCertificateData(from: fileData)
-            try core.importCertificate(certificateData: certificateData)
-            updateIdentityState() // Refresh to show the new certificate
-        } catch let error as NailedCoreError {
-            log.error("Certificate import error: \(error.localizedDescription)", category: "ui")
-            switch error {
-            case .certificateAlreadyExists:
-                errorMessage = "Certificate already exists in the keychain."
-            case .invalidCertificateData(let reason):
-                errorMessage = "Invalid certificate: \(reason)"
-            default:
-                errorMessage = "Failed to import certificate: \(error.localizedDescription)"
-            }
-        } catch {
-            log.error("Certificate import error: \(error.localizedDescription)", category: "ui")
-            errorMessage = "Failed to import certificate: \(error.localizedDescription)"
-        }
-    }
-    
-    private func parseCertificateData(from fileData: Data) -> Data {
-        NailedCore.parseCertificateData(from: fileData)
-    }
-    
+
     private func shareLogFile() {
         let logURL = NailedLogger.shared.logFileURL
         guard FileManager.default.fileExists(atPath: logURL.path) else { return }
@@ -495,7 +369,7 @@ struct ContentView: View {
                 }
                 try FileManager.default.copyItem(at: logURL, to: destURL)
             } catch {
-                log.error("Failed to save log file: \(error.localizedDescription)", category: "ui")
+                NailedLogger.shared.error("Failed to save log file: \(error.localizedDescription)", category: "ui")
             }
         }
     }
@@ -503,7 +377,7 @@ struct ContentView: View {
 
 // MARK: - CSR Generator View
 struct CSRGeneratorView: View {
-    let core: NailedCore?
+    let isReady: Bool
     let onGenerate: (String) -> Void
     
     @State private var commonName: String = ""
@@ -542,7 +416,7 @@ struct CSRGeneratorView: View {
             }
             .frame(maxWidth: .infinity)
         }
-        .disabled(commonName.isEmpty || core == nil)
+        .disabled(commonName.isEmpty || !isReady)
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
     }
@@ -603,4 +477,5 @@ struct CSRDocument: FileDocument {
 
 #Preview {
     ContentView()
+        .environmentObject(AppService())
 }

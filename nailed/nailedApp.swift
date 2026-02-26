@@ -9,9 +9,13 @@
 import SwiftUI
 
 struct NailedApp: App {
+    @StateObject private var appService = AppService()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appService)
+                .task { appService.start() }
         }
     }
 }
