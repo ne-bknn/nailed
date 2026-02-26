@@ -160,42 +160,6 @@ struct ContentView: View {
                 }
             }
             
-            // Statistics
-            if appService.server.isRunning || appService.server.totalConnections > 0 {
-                Divider()
-                
-                HStack(spacing: 16) {
-                    StatBadge(
-                        icon: "cable.connector",
-                        label: "Connections",
-                        value: appService.server.totalConnections,
-                        color: .blue
-                    )
-                    
-                    StatBadge(
-                        icon: "signature",
-                        label: "Signatures",
-                        value: appService.server.signCommands,
-                        color: .purple
-                    )
-                    
-                    StatBadge(
-                        icon: "doc.badge.plus",
-                        label: "Certificates",
-                        value: appService.server.certificateCommands,
-                        color: .orange
-                    )
-                    
-                    if appService.server.errorCount > 0 {
-                        StatBadge(
-                            icon: "exclamationmark.triangle",
-                            label: "Errors",
-                            value: appService.server.errorCount,
-                            color: .red
-                        )
-                    }
-                }
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -419,32 +383,6 @@ struct CSRGeneratorView: View {
         .disabled(commonName.isEmpty || !isReady)
         .buttonStyle(.borderedProminent)
         .controlSize(.large)
-    }
-}
-
-// MARK: - Stat Badge Component
-struct StatBadge: View {
-    let icon: String
-    let label: String
-    let value: Int
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text("\(value)")
-                    .font(.system(.body, design: .monospaced))
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(color)
-            
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .frame(minWidth: 70)
     }
 }
 

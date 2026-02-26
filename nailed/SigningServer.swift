@@ -9,12 +9,6 @@ class UnixSigningServer: ObservableObject {
     @Published var statusMessage = "Server stopped"
     @Published var errorMessage = ""
     
-    // Statistics
-    @Published var totalConnections: Int = 0
-    @Published var signCommands: Int = 0
-    @Published var certificateCommands: Int = 0
-    @Published var errorCount: Int = 0
-    
     private var listener: NWListener?
     private var core: (any NailedCoreProtocol)?
     private var activeConnections: [NWConnection] = []
@@ -104,9 +98,6 @@ class UnixSigningServer: ObservableObject {
     private func handleNewConnection(_ connection: NWConnection) {
         log.info("New management connection received", category: "server")
         activeConnections.append(connection)
-        DispatchQueue.main.async {
-            self.totalConnections += 1
-        }
         
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
@@ -284,10 +275,6 @@ class UnixSigningServer: ObservableObject {
             let response = "pk-sig\r\n\(base64Signature)\r\nEND\r\n"
             sendResponse(response, to: connection)
             
-            DispatchQueue.main.async {
-                self.signCommands += 1
-            }
-            
             log.debug("Sent signature: \(base64Signature)", category: "server")
             
         } catch {
@@ -344,10 +331,6 @@ class UnixSigningServer: ObservableObject {
             let response = "certificate\r\n-----BEGIN CERTIFICATE-----\r\n\(wrappedBase64)\r\n-----END CERTIFICATE-----\r\nEND\r\n"
             sendResponse(response, to: connection)
             
-            DispatchQueue.main.async {
-                self.certificateCommands += 1
-            }
-            
             log.debug("Sent certificate: \(base64Certificate.prefix(50))...", category: "server")
             
         } catch {
@@ -374,9 +357,6 @@ class UnixSigningServer: ObservableObject {
         let response = "ERROR: \(error)\r\n"
         log.error("Sending error response: \(error)", category: "server")
         sendResponse(response, to: connection)
-        DispatchQueue.main.async {
-            self.errorCount += 1
-        }
         // Keep connection alive after sending error
     }
 }
