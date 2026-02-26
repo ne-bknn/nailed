@@ -16,15 +16,15 @@ class UnixSigningServer: ObservableObject {
     @Published var errorCount: Int = 0
     
     private var listener: NWListener?
-    private var core: NailedCore?
+    private var core: (any NailedCoreProtocol)?
     private var activeConnections: [NWConnection] = []
     private let log = NailedLogger.shared
     
-    init(core: NailedCore?) {
+    init(core: (any NailedCoreProtocol)?) {
         self.core = core
     }
     
-    func updateCore(_ core: NailedCore?) {
+    func updateCore(_ core: (any NailedCoreProtocol)?) {
         self.core = core
     }
     

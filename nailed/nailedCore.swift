@@ -82,7 +82,22 @@ public struct CertificateInfo {
     }
 }
 
-public struct NailedCore {
+// MARK: - Core Protocol
+
+public protocol NailedCoreProtocol {
+    func hasIdentity() throws -> Bool
+    func generateIdentity() throws
+    func hasCertificate() throws -> Bool
+    func getCertificateInfo() throws -> CertificateInfo?
+    func generateCSR(commonName: String) throws -> Data
+    func importCertificate(certificateData: Data) throws
+    func exportCertificate() throws -> Data?
+    func exportPublicKey() throws -> Data?
+    func sign(data: Data) throws -> Data
+    func deleteIdentity() throws
+}
+
+public struct NailedCore: NailedCoreProtocol {
     private static let fixedTag = "com.nailed.single.identity"
     private let tag: String
     private let log = NailedLogger.shared

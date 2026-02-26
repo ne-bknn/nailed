@@ -15,7 +15,7 @@ final class AppService: ObservableObject {
 
     // MARK: - Owned objects
 
-    private(set) var core: NailedCore?
+    private(set) var core: (any NailedCoreProtocol)?
     let server: UnixSigningServer
 
     var isReady: Bool { core != nil }
