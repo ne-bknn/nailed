@@ -51,3 +51,194 @@ struct nailedTests {
         #expect(try core.sign(data: Data()) == testData)
     }
 }
+
+// MARK: - ManagementCommandHandler Tests
+
+struct ManagementCommandHandlerTests {
+
+    private func makeHandler(
+        identityExists: Bool = true,
+        certificateExists: Bool = true,
+        signResult: Data = Data(repeating: 0xAB, count: 8),
+        exportedCertificate: Data? = Data(repeating: 0xCD, count: 16)
+    ) -> (ManagementCommandHandler, MockNailedCore) {
+        let mock = MockNailedCore()
+        mock.identityExists = identityExists
+        mock.certificateExists = certificateExists
+        mock.signResult = signResult
+        mock.exportedCertificate = exportedCertificate
+        return (ManagementCommandHandler(core: mock), mock)
+    }
+
+    // MARK: - Simple commands
+
+    @Test func infoReturnsVersion() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">INFO")
+        #expect(results == ["version 5\r\n"])
+    }
+
+    @Test func holdReturnsSuccess() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">HOLD")
+        #expect(results == ["SUCCESS: hold release\r\n"])
+    }
+
+    @Test func stateReturnsSuccess() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">STATE")
+        #expect(results == ["SUCCESS: state query\r\n"])
+    }
+
+    // MARK: - Unknown / ignored input
+
+    @Test func unknownCommandReturnsError() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">FOO")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains(">FOO"))
+    }
+
+    @Test func linesWithoutPrefixAreSkipped() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage("plain text\nno prefix here")
+        #expect(results.isEmpty)
+    }
+
+    @Test func emptyMessageReturnsNothing() {
+        let (handler, _) = makeHandler()
+        #expect(handler.handleMessage("").isEmpty)
+        #expect(handler.handleMessage("   ").isEmpty)
+        #expect(handler.handleMessage("\n\n").isEmpty)
+    }
+
+    // MARK: - Multi-line
+
+    @Test func multiLineProducesMultipleResponses() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">INFO\n>HOLD\n>STATE")
+        #expect(results.count == 3)
+        #expect(results[0] == "version 5\r\n")
+        #expect(results[1] == "SUCCESS: hold release\r\n")
+        #expect(results[2] == "SUCCESS: state query\r\n")
+    }
+
+    @Test func multiLineMixedWithNonCommands() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage("hello\n>INFO\nignored\n>HOLD")
+        #expect(results.count == 2)
+    }
+
+    // MARK: - PK_SIGN
+
+    @Test func pkSignWithECDSASuffix() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0x01, 0x02, 0x03])
+        let (handler, _) = makeHandler(signResult: sig)
+
+        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("pk-sig\r\n"))
+        #expect(results[0].hasSuffix("END\r\n"))
+        #expect(results[0].contains(sig.base64EncodedString()))
+    }
+
+    @Test func pkSignWithoutAlgorithmSuffix() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0x01, 0x02, 0x03])
+        let (handler, _) = makeHandler(signResult: sig)
+
+        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString())")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("pk-sig\r\n"))
+    }
+
+    @Test func pkSignInvalidBase64() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">PK_SIGN:not-valid-base64!!!")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("base64"))
+    }
+
+    @Test func pkSignEmptyDigest() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">PK_SIGN:")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+    }
+
+    @Test func pkSignUnsupportedAlgorithm() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),RSA")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("RSA"))
+    }
+
+    @Test func pkSignNoIdentity() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let (handler, _) = makeHandler(identityExists: false)
+        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("identity"))
+    }
+
+    @Test func pkSignNoCertificate() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let (handler, _) = makeHandler(certificateExists: false)
+        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("certificate"))
+    }
+
+    // MARK: - NEED-CERTIFICATE
+
+    @Test func needCertificateEnclaved() {
+        let certData = Data(repeating: 0xEE, count: 100)
+        let (handler, _) = makeHandler(exportedCertificate: certData)
+
+        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("certificate\r\n"))
+        #expect(results[0].contains("-----BEGIN CERTIFICATE-----"))
+        #expect(results[0].contains("-----END CERTIFICATE-----"))
+        #expect(results[0].hasSuffix("END\r\n"))
+    }
+
+    @Test func needCertificateNonEnclavedType() {
+        let (handler, _) = makeHandler()
+        let results = handler.handleMessage(">NEED-CERTIFICATE:other")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("enclaved"))
+    }
+
+    @Test func needCertificateNoIdentity() {
+        let (handler, _) = makeHandler(identityExists: false)
+        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("identity"))
+    }
+
+    @Test func needCertificateNoCertificate() {
+        let (handler, _) = makeHandler(certificateExists: false)
+        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("certificate"))
+    }
+
+    @Test func needCertificateExportReturnsNil() {
+        let (handler, _) = makeHandler(exportedCertificate: nil)
+        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
+        #expect(results.count == 1)
+        #expect(results[0].hasPrefix("ERROR:"))
+        #expect(results[0].contains("export"))
+    }
+}
