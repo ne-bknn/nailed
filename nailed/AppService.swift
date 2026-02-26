@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
-import Combine
 import AppKit
 
 final class AppService: ObservableObject {
@@ -11,26 +10,28 @@ final class AppService: ObservableObject {
     @Published private(set) var hasIdentity: Bool = false
     @Published private(set) var hasCertificate: Bool = false
     @Published private(set) var certificateInfo: CertificateInfo?
+    @Published private(set) var serverStatus = ServerStatus()
     @Published var errorMessage: String = ""
 
     // MARK: - Owned objects
 
     private(set) var core: (any NailedCoreProtocol)?
-    let server: UnixSigningServer
+    private let server: UnixSigningServer
 
     var isReady: Bool { core != nil }
 
     // MARK: - Private
 
     private let log = NailedLogger.shared
-    private var serverCancellable: AnyCancellable?
 
     // MARK: - Init
 
     init() {
         self.server = UnixSigningServer(core: nil)
-        serverCancellable = server.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+        server.onStatusChange = { [weak self] status in
+            DispatchQueue.main.async {
+                self?.serverStatus = status
+            }
         }
     }
 

@@ -147,14 +147,14 @@ struct ContentView: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Image(systemName: appService.server.isRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(appService.server.isRunning ? .green : .red)
-                    Text(appService.server.statusMessage)
+                    Image(systemName: appService.serverStatus.isRunning ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(appService.serverStatus.isRunning ? .green : .red)
+                    Text(appService.serverStatus.statusMessage)
                         .font(.body)
                 }
                 
-                if !appService.server.errorMessage.isEmpty {
-                    Text(appService.server.errorMessage)
+                if !appService.serverStatus.errorMessage.isEmpty {
+                    Text(appService.serverStatus.errorMessage)
                         .font(.caption)
                         .foregroundColor(.red)
                 }
@@ -164,14 +164,14 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(
-            appService.server.isRunning ?
+            appService.serverStatus.isRunning ?
             Color.green.opacity(0.15) :
             Color.gray.opacity(0.1)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(
-                    appService.server.isRunning ?
+                    appService.serverStatus.isRunning ?
                     Color.green.opacity(0.3) :
                     Color.clear,
                     lineWidth: 2

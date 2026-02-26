@@ -3,18 +3,24 @@
 import Foundation
 import Network
 
-class UnixSigningServer: ObservableObject {
-    @Published var isRunning = false
-    @Published var socketPath: String = "/tmp/nailed_signing.sock"
-    @Published var statusMessage = "Server stopped"
-    @Published var errorMessage = ""
+struct ServerStatus {
+    var isRunning: Bool = false
+    var statusMessage: String = "Server stopped"
+    var errorMessage: String = ""
+}
+
+class UnixSigningServer {
+    private(set) var status = ServerStatus()
+    let socketPath: String
+    var onStatusChange: ((ServerStatus) -> Void)?
     
     private var listener: NWListener?
     private var handler: ManagementCommandHandler?
     private var activeConnections: [NWConnection] = []
     private let log = NailedLogger.shared
     
-    init(core: (any NailedCoreProtocol)?) {
+    init(core: (any NailedCoreProtocol)?, socketPath: String = "/tmp/nailed_signing.sock") {
+        self.socketPath = socketPath
         if let core { self.handler = ManagementCommandHandler(core: core) }
     }
     
@@ -27,25 +33,19 @@ class UnixSigningServer: ObservableObject {
     }
     
     func startServer() {
-        guard !isRunning else { return }
+        guard !status.isRunning else { return }
         
-        // Clean up any existing socket file
         try? FileManager.default.removeItem(atPath: socketPath)
         
-        // Create parameters for Unix domain socket using the correct approach
         let params = NWParameters(tls: nil, tcp: .init())
-        
-        // Force the bind point to a Unix-domain path
         params.requiredLocalEndpoint = .unix(path: socketPath)
-        
-        // Reuse the same path on restart, and let anyone connect
         params.allowLocalEndpointReuse = true
         
         do {
-            // Create the listener; no endpoint argument needed
             listener = try NWListener(using: params)
         } catch {
-            errorMessage = "Failed to create listener: \(error.localizedDescription)"
+            status.errorMessage = "Failed to create listener: \(error.localizedDescription)"
+            onStatusChange?(status)
             return
         }
         
@@ -54,35 +54,31 @@ class UnixSigningServer: ObservableObject {
         }
         
         listener?.stateUpdateHandler = { [weak self] state in
-            DispatchQueue.main.async {
-                switch state {
-                case .ready:
-                    self?.isRunning = true
-                    self?.statusMessage = "Management server running on \(self?.socketPath ?? "")"
-                    self?.errorMessage = ""
-                case .failed(let error):
-                    self?.isRunning = false
-                    self?.statusMessage = "Management server failed"
-                    self?.errorMessage = "Server failed: \(error.localizedDescription)"
-                case .cancelled:
-                    self?.isRunning = false
-                    self?.statusMessage = "Management server stopped"
-                    self?.errorMessage = ""
-                    // Clean up socket file when server stops
-                    if let path = self?.socketPath {
-                        try? FileManager.default.removeItem(atPath: path)
-                    }
-                default:
-                    break
-                }
+            guard let self else { return }
+            switch state {
+            case .ready:
+                self.status.isRunning = true
+                self.status.statusMessage = "Management server running on \(self.socketPath)"
+                self.status.errorMessage = ""
+            case .failed(let error):
+                self.status.isRunning = false
+                self.status.statusMessage = "Management server failed"
+                self.status.errorMessage = "Server failed: \(error.localizedDescription)"
+            case .cancelled:
+                self.status.isRunning = false
+                self.status.statusMessage = "Management server stopped"
+                self.status.errorMessage = ""
+                try? FileManager.default.removeItem(atPath: self.socketPath)
+            default:
+                return
             }
+            self.onStatusChange?(self.status)
         }
         
         listener?.start(queue: .main)
     }
     
     func stopServer() {
-        // Close all active connections
         for connection in activeConnections {
             connection.cancel()
         }
@@ -90,13 +86,11 @@ class UnixSigningServer: ObservableObject {
         
         listener?.cancel()
         listener = nil
-        DispatchQueue.main.async {
-            self.isRunning = false
-            self.statusMessage = "Management server stopped"
-            self.errorMessage = ""
-            // Clean up socket file
-            try? FileManager.default.removeItem(atPath: self.socketPath)
-        }
+        status.isRunning = false
+        status.statusMessage = "Management server stopped"
+        status.errorMessage = ""
+        try? FileManager.default.removeItem(atPath: socketPath)
+        onStatusChange?(status)
     }
     
     private func handleNewConnection(_ connection: NWConnection) {

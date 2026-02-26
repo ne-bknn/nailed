@@ -242,3 +242,50 @@ struct ManagementCommandHandlerTests {
         #expect(results[0].contains("export"))
     }
 }
+
+// MARK: - UnixSigningServer Tests
+
+struct UnixSigningServerTests {
+
+    @Test func initialStatusIsNotRunning() {
+        let server = UnixSigningServer(core: nil)
+        #expect(server.status.isRunning == false)
+        #expect(server.status.statusMessage == "Server stopped")
+        #expect(server.status.errorMessage == "")
+    }
+
+    @Test func defaultSocketPath() {
+        let server = UnixSigningServer(core: nil)
+        #expect(server.socketPath == "/tmp/nailed_signing.sock")
+    }
+
+    @Test func customSocketPath() {
+        let server = UnixSigningServer(core: nil, socketPath: "/tmp/custom.sock")
+        #expect(server.socketPath == "/tmp/custom.sock")
+    }
+
+    @Test func stopServerOnIdleIsNoOp() {
+        var callbackCount = 0
+        let server = UnixSigningServer(core: nil)
+        server.onStatusChange = { _ in callbackCount += 1 }
+
+        server.stopServer()
+
+        #expect(server.status.isRunning == false)
+        #expect(server.status.statusMessage == "Management server stopped")
+        #expect(callbackCount == 1)
+    }
+
+    @Test func callbackReceivesStatusOnStop() {
+        var receivedStatus: ServerStatus?
+        let server = UnixSigningServer(core: nil)
+        server.onStatusChange = { status in receivedStatus = status }
+
+        server.stopServer()
+
+        #expect(receivedStatus != nil)
+        #expect(receivedStatus?.isRunning == false)
+        #expect(receivedStatus?.statusMessage == "Management server stopped")
+        #expect(receivedStatus?.errorMessage == "")
+    }
+}
