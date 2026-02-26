@@ -60,10 +60,13 @@ clean:
 clean-all: clean
 	rm -rf $(BORINGSSL_BUILD)
 
-# Install to /usr/local/lib (requires sudo)
+INSTALL_DIR = $(HOME)/.pkcs11_modules
+
 install: $(DYLIB)
-	install -d /usr/local/lib
-	install -m 755 $(DYLIB) /usr/local/lib/
+	install -d $(INSTALL_DIR)
+	rm -f $(INSTALL_DIR)/$(DYLIB)
+	install -m 755 $(DYLIB) $(INSTALL_DIR)/
+	codesign --force --sign - $(INSTALL_DIR)/$(DYLIB)
 
 # Test with pkcs11-tool (requires opensc)
 test: $(DYLIB)
