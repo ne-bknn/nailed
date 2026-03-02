@@ -11,10 +11,7 @@ case .cli(_, _):
     NSApplication.shared.setActivationPolicy(.prohibited)
     NailedCLI.run(arguments: args)
 
-case .daemon:
-    NSApplication.shared.setActivationPolicy(.prohibited)
-    DaemonRunner.run()
-
 case .app:
+    NSApplication.shared.setActivationPolicy(.accessory)
     NailedApp.main()
 }

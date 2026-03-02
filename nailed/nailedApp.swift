@@ -12,11 +12,6 @@ struct NailedApp: App {
     @NSApplicationDelegateAdaptor(NailedAppDelegate.self) var delegate
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environmentObject(delegate.appService)
-        }
-
         MenuBarExtra("nailed", systemImage: "lock.shield") {
             MenuBarView()
                 .environmentObject(delegate.appService)

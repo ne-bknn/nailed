@@ -7,8 +7,9 @@ final class NailedAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appService.start()
-        // MenuBarExtra presence prevents SwiftUI from auto-activating the app;
-        // activate explicitly so the WindowGroup window appears on launch.
-        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        appService.stopServer()
     }
 }

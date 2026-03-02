@@ -31,7 +31,7 @@ enum NailedCLI {
         case "help", "--help", "-h":
             printUsage()
         case "version", "--version":
-            print("nailed 1.0.0")
+            print("nailed \(AppVersion.version)")
         case "status":
             runStatus()
         case "generate-identity":
@@ -363,9 +363,9 @@ enum NailedCLI {
     private static func printUsage() {
         let usage = """
         nailed — Secure Enclave identity manager
-        
+
         Usage: nailed <command> [options]
-        
+
         Commands:
           status                          Show identity and certificate status
           generate-identity               Generate a new Secure Enclave key pair
@@ -373,13 +373,10 @@ enum NailedCLI {
           import-certificate <FILE>       Import a signed certificate (PEM or DER)
           export-certificate [-o FILE]    Export the certificate in PEM format
           delete-identity [--force]       Delete the identity (irreversible)
-        
-        Special modes:
-          daemon                          Run as a headless signing server
-        
+
         Run 'nailed <command> --help' for details on a specific command.
-        
-        When invoked without a command, the GUI application launches.
+
+        When invoked without a command, the menu bar service starts (signing server + status icon).
         """
         print(usage)
     }

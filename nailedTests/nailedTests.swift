@@ -61,11 +61,6 @@ struct RuntimeModeTests {
         guard case .app = mode else { return #expect(Bool(false)) }
     }
 
-    @Test func daemonMode() {
-        let mode = RuntimeMode.resolve(from: ["daemon"])
-        guard case .daemon = mode else { return #expect(Bool(false)) }
-    }
-
     @Test func cliCommand() {
         let mode = RuntimeMode.resolve(from: ["status"])
         guard case .cli(let cmd, _) = mode else { return #expect(Bool(false)) }
@@ -81,6 +76,12 @@ struct RuntimeModeTests {
 
     @Test func unknownArgFallsToApp() {
         let mode = RuntimeMode.resolve(from: ["--unknown-flag"])
+        guard case .app = mode else { return #expect(Bool(false)) }
+    }
+
+    @Test func daemonArgFallsToApp() {
+        // "daemon" is no longer a special mode; it falls through to .app
+        let mode = RuntimeMode.resolve(from: ["daemon"])
         guard case .app = mode else { return #expect(Bool(false)) }
     }
 }
