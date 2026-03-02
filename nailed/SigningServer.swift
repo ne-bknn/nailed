@@ -33,7 +33,11 @@ class UnixSigningServer {
     }
     
     func startServer() {
-        guard !status.isRunning else { return }
+        log.info("startServer() called, isRunning=\(status.isRunning)", category: "server")
+        guard !status.isRunning else {
+            log.info("startServer() skipped: already running", category: "server")
+            return
+        }
         
         try? FileManager.default.removeItem(atPath: socketPath)
         
@@ -56,20 +60,30 @@ class UnixSigningServer {
         listener?.stateUpdateHandler = { [weak self] state in
             guard let self else { return }
             switch state {
+            case .setup:
+                self.log.debug("Listener state: setup", category: "server")
+                return
+            case .waiting(let error):
+                self.log.warning("Listener state: waiting (\(error.localizedDescription))", category: "server")
+                return
             case .ready:
+                self.log.info("Listener state: ready on \(self.socketPath)", category: "server")
                 self.status.isRunning = true
                 self.status.statusMessage = "Management server running on \(self.socketPath)"
                 self.status.errorMessage = ""
             case .failed(let error):
+                self.log.error("Listener state: failed (\(error.localizedDescription))", category: "server")
                 self.status.isRunning = false
                 self.status.statusMessage = "Management server failed"
                 self.status.errorMessage = "Server failed: \(error.localizedDescription)"
             case .cancelled:
+                self.log.info("Listener state: cancelled", category: "server")
                 self.status.isRunning = false
                 self.status.statusMessage = "Management server stopped"
                 self.status.errorMessage = ""
                 try? FileManager.default.removeItem(atPath: self.socketPath)
-            default:
+            @unknown default:
+                self.log.warning("Listener state: unknown (\(state))", category: "server")
                 return
             }
             self.onStatusChange?(self.status)
@@ -79,6 +93,7 @@ class UnixSigningServer {
     }
     
     func stopServer() {
+        log.info("stopServer() called, \(activeConnections.count) active connections", category: "server")
         for connection in activeConnections {
             connection.cancel()
         }
