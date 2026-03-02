@@ -2,11 +2,19 @@
 
 import Foundation
 
+/// Abstraction for logging so consumers can be tested without file I/O.
+public protocol LoggerProtocol {
+    func debug(_ message: String, category: String)
+    func info(_ message: String, category: String)
+    func warning(_ message: String, category: String)
+    func error(_ message: String, category: String)
+}
+
 /// Centralized, file-based logger for nailed.
 ///
 /// Writes structured log lines to `~/Library/Logs/nailed/nailed.log`
 /// and mirrors every entry to stderr so Xcode / terminal output still works.
-final class NailedLogger {
+public final class NailedLogger: LoggerProtocol {
 
     // MARK: - Public types
 
@@ -19,7 +27,7 @@ final class NailedLogger {
 
     // MARK: - Singleton
 
-    static let shared = NailedLogger()
+    public static let shared = NailedLogger()
 
     // MARK: - Properties
 
@@ -65,19 +73,19 @@ final class NailedLogger {
 
     // MARK: - Convenience methods
 
-    func debug(_ message: String, category: String) {
+    public func debug(_ message: String, category: String) {
         log(level: .debug, category: category, message: message)
     }
 
-    func info(_ message: String, category: String) {
+    public func info(_ message: String, category: String) {
         log(level: .info, category: category, message: message)
     }
 
-    func warning(_ message: String, category: String) {
+    public func warning(_ message: String, category: String) {
         log(level: .warning, category: category, message: message)
     }
 
-    func error(_ message: String, category: String) {
+    public func error(_ message: String, category: String) {
         log(level: .error, category: category, message: message)
     }
 

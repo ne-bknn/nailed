@@ -6,8 +6,6 @@ import ServiceManagement
 /// Command-line interface for nailed — manage Secure Enclave identities without the GUI.
 enum NailedCLI {
     
-    private static let log = NailedLogger.shared
-    
     private static let commands: Set<String> = [
         "status", "generate-identity", "generate-csr",
         "import-certificate", "export-certificate", "delete-identity",
@@ -20,7 +18,8 @@ enum NailedCLI {
     }
     
     /// Main entry point — parse arguments, run the command, then exit.
-    static func run(arguments: [String]) -> Never {
+    static func run(arguments: [String], logger: any LoggerProtocol = NailedLogger.shared) -> Never {
+        let log = logger
         guard let command = arguments.first else {
             printUsage()
             exit(1)
@@ -35,21 +34,21 @@ enum NailedCLI {
         case "version", "--version":
             print("nailed \(AppVersion.version)")
         case "status":
-            runStatus()
+            runStatus(log: log)
         case "generate-identity":
-            runGenerateIdentity()
+            runGenerateIdentity(log: log)
         case "generate-csr":
-            runGenerateCSR(arguments: subArgs)
+            runGenerateCSR(arguments: subArgs, log: log)
         case "import-certificate":
-            runImportCertificate(arguments: subArgs)
+            runImportCertificate(arguments: subArgs, log: log)
         case "export-certificate":
-            runExportCertificate(arguments: subArgs)
+            runExportCertificate(arguments: subArgs, log: log)
         case "delete-identity":
-            runDeleteIdentity(arguments: subArgs)
+            runDeleteIdentity(arguments: subArgs, log: log)
         case "enable-login-item":
-            runEnableLoginItem()
+            runEnableLoginItem(log: log)
         case "disable-login-item":
-            runDisableLoginItem()
+            runDisableLoginItem(log: log)
         default:
             printError("unknown command: \(command)")
             printUsage()
@@ -61,8 +60,8 @@ enum NailedCLI {
     
     // MARK: - Commands
     
-    private static func runStatus() {
-        let core = initCore()
+    private static func runStatus(log: any LoggerProtocol) {
+        let core = initCore(log: log)
         
         do {
             guard try core.hasIdentity() else {
@@ -105,8 +104,8 @@ enum NailedCLI {
         }
     }
     
-    private static func runGenerateIdentity() {
-        let core = initCore()
+    private static func runGenerateIdentity(log: any LoggerProtocol) {
+        let core = initCore(log: log)
         
         do {
             if try core.hasIdentity() {
@@ -124,7 +123,7 @@ enum NailedCLI {
         }
     }
     
-    private static func runGenerateCSR(arguments: [String]) {
+    private static func runGenerateCSR(arguments: [String], log: any LoggerProtocol) {
         var commonName: String?
         var outputPath: String?
         
@@ -165,7 +164,7 @@ enum NailedCLI {
             die("missing required argument: <common-name>. See 'nailed generate-csr --help'")
         }
         
-        let core = initCore()
+        let core = initCore(log: log)
         
         do {
             guard try core.hasIdentity() else {
@@ -189,7 +188,7 @@ enum NailedCLI {
         }
     }
     
-    private static func runImportCertificate(arguments: [String]) {
+    private static func runImportCertificate(arguments: [String], log: any LoggerProtocol) {
         var filePath: String?
         
         for arg in arguments {
@@ -216,7 +215,7 @@ enum NailedCLI {
             die("missing required argument: <FILE>. See 'nailed import-certificate --help'")
         }
         
-        let core = initCore()
+        let core = initCore(log: log)
         
         do {
             guard try core.hasIdentity() else {
@@ -253,7 +252,7 @@ enum NailedCLI {
         }
     }
     
-    private static func runExportCertificate(arguments: [String]) {
+    private static func runExportCertificate(arguments: [String], log: any LoggerProtocol) {
         var outputPath: String?
         
         var i = 0
@@ -278,7 +277,7 @@ enum NailedCLI {
             }
         }
         
-        let core = initCore()
+        let core = initCore(log: log)
         
         do {
             guard try core.hasIdentity() else {
@@ -309,7 +308,7 @@ enum NailedCLI {
         }
     }
     
-    private static func runDeleteIdentity(arguments: [String]) {
+    private static func runDeleteIdentity(arguments: [String], log: any LoggerProtocol) {
         var force = false
         
         for arg in arguments {
@@ -330,7 +329,7 @@ enum NailedCLI {
             }
         }
         
-        let core = initCore()
+        let core = initCore(log: log)
         
         do {
             guard try core.hasIdentity() else {
@@ -356,7 +355,7 @@ enum NailedCLI {
         }
     }
     
-    private static func runEnableLoginItem() {
+    private static func runEnableLoginItem(log: any LoggerProtocol) {
         do {
             try SMAppService.mainApp.register()
             print("Login item enabled. nailed will launch at login.")
@@ -367,7 +366,7 @@ enum NailedCLI {
         }
     }
 
-    private static func runDisableLoginItem() {
+    private static func runDisableLoginItem(log: any LoggerProtocol) {
         do {
             try SMAppService.mainApp.unregister()
             print("Login item disabled.")
@@ -380,9 +379,9 @@ enum NailedCLI {
 
     // MARK: - Helpers
     
-    private static func initCore() -> NailedCore {
+    private static func initCore(log: any LoggerProtocol) -> NailedCore {
         do {
-            return try NailedCore()
+            return try NailedCore(logger: log)
         } catch {
             die("failed to initialize: \(error.localizedDescription)")
         }

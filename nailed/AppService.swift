@@ -19,14 +19,19 @@ final class AppService: ObservableObject {
 
     var isReady: Bool { core != nil }
 
+    let logFileURL: URL
+
     // MARK: - Private
 
-    private let log = NailedLogger.shared
+    private let log: any LoggerProtocol
 
     // MARK: - Init
 
-    init() {
-        self.server = UnixSigningServer(core: nil)
+    init(logger: any LoggerProtocol = NailedLogger.shared) {
+        self.log = logger
+        self.logFileURL = (logger as? NailedLogger)?.logFileURL
+            ?? NailedLogger.shared.logFileURL
+        self.server = UnixSigningServer(core: nil, logger: logger)
         server.onStatusChange = { [weak self] status in
             DispatchQueue.main.async {
                 self?.serverStatus = status
@@ -38,7 +43,7 @@ final class AppService: ObservableObject {
 
     func start() {
         do {
-            let core = try NailedCore()
+            let core = try NailedCore(logger: log)
             self.core = core
             server.updateCore(core)
             server.startServer()

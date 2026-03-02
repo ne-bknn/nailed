@@ -8,8 +8,13 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            serverStatusItem
-            identityStatusItem
+            Group {
+                serverStatusItem
+                identityStatusItem
+                Text("nailed \(AppVersion.version)")
+            }
+            .font(.callout)
+            .foregroundColor(.secondary)
             Divider()
             showLogButton
             Divider()
@@ -54,9 +59,9 @@ struct MenuBarView: View {
 
     private var showLogButton: some View {
         Button("Show Log in Finder") {
-            let logURL = NailedLogger.shared.logFileURL
+            let logURL = appService.logFileURL
             NSWorkspace.shared.selectFile(logURL.path, inFileViewerRootedAtPath: logURL.deletingLastPathComponent().path)
         }
-        .disabled(!FileManager.default.fileExists(atPath: NailedLogger.shared.logFileURL.path))
+        .disabled(!FileManager.default.fileExists(atPath: appService.logFileURL.path))
     }
 }

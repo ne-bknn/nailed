@@ -7,10 +7,11 @@ import Foundation
 /// Has no network or UI dependencies — fully unit-testable.
 struct ManagementCommandHandler {
     private let core: any NailedCoreProtocol
-    private let log = NailedLogger.shared
+    private let log: any LoggerProtocol
 
-    init(core: any NailedCoreProtocol) {
+    init(core: any NailedCoreProtocol, logger: any LoggerProtocol = NailedLogger.shared) {
         self.core = core
+        self.log = logger
     }
 
     /// Process a raw UTF-8 message (possibly multi-line) and return one response

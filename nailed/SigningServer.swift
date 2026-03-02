@@ -17,16 +17,17 @@ class UnixSigningServer {
     private var listener: NWListener?
     private var handler: ManagementCommandHandler?
     private var activeConnections: [NWConnection] = []
-    private let log = NailedLogger.shared
+    private let log: any LoggerProtocol
     
-    init(core: (any NailedCoreProtocol)?, socketPath: String = "/tmp/nailed_signing.sock") {
+    init(core: (any NailedCoreProtocol)?, socketPath: String = "/tmp/nailed_signing.sock", logger: any LoggerProtocol = NailedLogger.shared) {
         self.socketPath = socketPath
-        if let core { self.handler = ManagementCommandHandler(core: core) }
+        self.log = logger
+        if let core { self.handler = ManagementCommandHandler(core: core, logger: logger) }
     }
     
     func updateCore(_ core: (any NailedCoreProtocol)?) {
         if let core {
-            self.handler = ManagementCommandHandler(core: core)
+            self.handler = ManagementCommandHandler(core: core, logger: log)
         } else {
             self.handler = nil
         }

@@ -100,11 +100,12 @@ public protocol NailedCoreProtocol {
 public struct NailedCore: NailedCoreProtocol {
     private static let fixedTag = "com.nailed.single.identity"
     private let tag: String
-    private let log = NailedLogger.shared
+    private let log: any LoggerProtocol
     // private let keychainAccessGroup: String
     
-    public init() throws {
+    public init(logger: any LoggerProtocol = NailedLogger.shared) throws {
         self.tag = Self.fixedTag
+        self.log = logger
         // self.keychainAccessGroup = "6RQQWGRA2K.com.ne-bknn.nailed"
     }
     

@@ -3,6 +3,19 @@ import Testing
 import Foundation
 @testable import nailed
 
+// MARK: - Mock Logger
+
+final class MockLogger: LoggerProtocol {
+    var entries: [(level: String, category: String, message: String)] = []
+
+    func debug(_ message: String, category: String) { entries.append(("debug", category, message)) }
+    func info(_ message: String, category: String) { entries.append(("info", category, message)) }
+    func warning(_ message: String, category: String) { entries.append(("warning", category, message)) }
+    func error(_ message: String, category: String) { entries.append(("error", category, message)) }
+}
+
+// MARK: - Mock Core
+
 final class MockNailedCore: NailedCoreProtocol {
     var identityExists = false
     var certificateExists = false
@@ -101,7 +114,7 @@ struct ManagementCommandHandlerTests {
         mock.certificateExists = certificateExists
         mock.signResult = signResult
         mock.exportedCertificate = exportedCertificate
-        return (ManagementCommandHandler(core: mock), mock)
+        return (ManagementCommandHandler(core: mock, logger: MockLogger()), mock)
     }
 
     // MARK: - Simple commands
@@ -282,25 +295,25 @@ struct ManagementCommandHandlerTests {
 struct UnixSigningServerTests {
 
     @Test func initialStatusIsNotRunning() {
-        let server = UnixSigningServer(core: nil)
+        let server = UnixSigningServer(core: nil, logger: MockLogger())
         #expect(server.status.isRunning == false)
         #expect(server.status.statusMessage == "Server stopped")
         #expect(server.status.errorMessage == "")
     }
 
     @Test func defaultSocketPath() {
-        let server = UnixSigningServer(core: nil)
+        let server = UnixSigningServer(core: nil, logger: MockLogger())
         #expect(server.socketPath == "/tmp/nailed_signing.sock")
     }
 
     @Test func customSocketPath() {
-        let server = UnixSigningServer(core: nil, socketPath: "/tmp/custom.sock")
+        let server = UnixSigningServer(core: nil, socketPath: "/tmp/custom.sock", logger: MockLogger())
         #expect(server.socketPath == "/tmp/custom.sock")
     }
 
     @Test func stopServerOnIdleIsNoOp() {
         var callbackCount = 0
-        let server = UnixSigningServer(core: nil)
+        let server = UnixSigningServer(core: nil, logger: MockLogger())
         server.onStatusChange = { _ in callbackCount += 1 }
 
         server.stopServer()
@@ -312,7 +325,7 @@ struct UnixSigningServerTests {
 
     @Test func callbackReceivesStatusOnStop() {
         var receivedStatus: ServerStatus?
-        let server = UnixSigningServer(core: nil)
+        let server = UnixSigningServer(core: nil, logger: MockLogger())
         server.onStatusChange = { status in receivedStatus = status }
 
         server.stopServer()
