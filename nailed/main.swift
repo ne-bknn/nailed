@@ -3,14 +3,18 @@
 import Foundation
 import AppKit
 
-// If the first argument after the executable name is a known CLI command,
-// run in headless CLI mode.  Otherwise launch the normal SwiftUI GUI.
 let args = Array(CommandLine.arguments.dropFirst())
+let mode = RuntimeMode.resolve(from: args)
 
-if let firstArg = args.first, NailedCLI.isCommand(firstArg) {
-    // Prevent dock icon / window-server connection when running as a CLI tool.
+switch mode {
+case .cli(_, _):
     NSApplication.shared.setActivationPolicy(.prohibited)
     NailedCLI.run(arguments: args)
-} else {
+
+case .daemon:
+    NSApplication.shared.setActivationPolicy(.prohibited)
+    DaemonRunner.run()
+
+case .app:
     NailedApp.main()
 }

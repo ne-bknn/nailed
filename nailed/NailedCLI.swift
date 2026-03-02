@@ -374,6 +374,9 @@ enum NailedCLI {
           export-certificate [-o FILE]    Export the certificate in PEM format
           delete-identity [--force]       Delete the identity (irreversible)
         
+        Special modes:
+          daemon                          Run as a headless signing server
+        
         Run 'nailed <command> --help' for details on a specific command.
         
         When invoked without a command, the GUI application launches.

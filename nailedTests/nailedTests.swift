@@ -52,6 +52,39 @@ struct nailedTests {
     }
 }
 
+// MARK: - RuntimeMode Tests
+
+struct RuntimeModeTests {
+
+    @Test func defaultIsApp() {
+        let mode = RuntimeMode.resolve(from: [])
+        guard case .app = mode else { return #expect(Bool(false)) }
+    }
+
+    @Test func daemonMode() {
+        let mode = RuntimeMode.resolve(from: ["daemon"])
+        guard case .daemon = mode else { return #expect(Bool(false)) }
+    }
+
+    @Test func cliCommand() {
+        let mode = RuntimeMode.resolve(from: ["status"])
+        guard case .cli(let cmd, _) = mode else { return #expect(Bool(false)) }
+        #expect(cmd == "status")
+    }
+
+    @Test func cliCommandPreservesFullArgs() {
+        let mode = RuntimeMode.resolve(from: ["generate-csr", "My Name", "-o", "out.csr"])
+        guard case .cli(let cmd, let all) = mode else { return #expect(Bool(false)) }
+        #expect(cmd == "generate-csr")
+        #expect(all == ["generate-csr", "My Name", "-o", "out.csr"])
+    }
+
+    @Test func unknownArgFallsToApp() {
+        let mode = RuntimeMode.resolve(from: ["--unknown-flag"])
+        guard case .app = mode else { return #expect(Bool(false)) }
+    }
+}
+
 // MARK: - ManagementCommandHandler Tests
 
 struct ManagementCommandHandlerTests {

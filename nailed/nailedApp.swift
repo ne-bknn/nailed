@@ -9,13 +9,17 @@
 import SwiftUI
 
 struct NailedApp: App {
-    @StateObject private var appService = AppService()
+    @NSApplicationDelegateAdaptor(NailedAppDelegate.self) var delegate
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(appService)
-                .task { appService.start() }
+                .environmentObject(delegate.appService)
+        }
+
+        MenuBarExtra("nailed", systemImage: "lock.shield") {
+            MenuBarView()
+                .environmentObject(delegate.appService)
         }
     }
 }
