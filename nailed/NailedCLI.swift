@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
+import ServiceManagement
 
 /// Command-line interface for nailed — manage Secure Enclave identities without the GUI.
 enum NailedCLI {
@@ -9,7 +10,8 @@ enum NailedCLI {
     
     private static let commands: Set<String> = [
         "status", "generate-identity", "generate-csr",
-        "import-certificate", "export-certificate", "delete-identity"
+        "import-certificate", "export-certificate", "delete-identity",
+        "enable-login-item", "disable-login-item"
     ]
     
     /// Returns true if the argument looks like a CLI command (not a GUI launch).
@@ -44,6 +46,10 @@ enum NailedCLI {
             runExportCertificate(arguments: subArgs)
         case "delete-identity":
             runDeleteIdentity(arguments: subArgs)
+        case "enable-login-item":
+            runEnableLoginItem()
+        case "disable-login-item":
+            runDisableLoginItem()
         default:
             printError("unknown command: \(command)")
             printUsage()
@@ -350,6 +356,28 @@ enum NailedCLI {
         }
     }
     
+    private static func runEnableLoginItem() {
+        do {
+            try SMAppService.mainApp.register()
+            print("Login item enabled. nailed will launch at login.")
+            exit(0)
+        } catch {
+            log.error("Failed to enable login item: \(error.localizedDescription)", category: "cli")
+            die("failed to enable login item: \(error.localizedDescription)")
+        }
+    }
+
+    private static func runDisableLoginItem() {
+        do {
+            try SMAppService.mainApp.unregister()
+            print("Login item disabled.")
+            exit(0)
+        } catch {
+            log.error("Failed to disable login item: \(error.localizedDescription)", category: "cli")
+            die("failed to disable login item: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Helpers
     
     private static func initCore() -> NailedCore {
@@ -373,6 +401,8 @@ enum NailedCLI {
           import-certificate <FILE>       Import a signed certificate (PEM or DER)
           export-certificate [-o FILE]    Export the certificate in PEM format
           delete-identity [--force]       Delete the identity (irreversible)
+          enable-login-item               Register nailed to launch at login
+          disable-login-item              Remove nailed from login items
 
         Run 'nailed <command> --help' for details on a specific command.
 
