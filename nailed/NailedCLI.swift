@@ -389,7 +389,7 @@ enum NailedCLI {
     
     private static func printUsage() {
         let usage = """
-        nailed — Secure Enclave identity manager
+        nailed \(AppVersion.version) — Secure Enclave identity manager
 
         Usage: nailed <command> [options]
 
