@@ -335,7 +335,13 @@ jobs:
 
           mv release-assets/nailed.pkg "release-assets/nailed-${VERSION}.pkg"
 
+          PRERELEASE_FLAG=""
+          if [[ "$VERSION" == *-rc* ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
           gh release create "$VERSION" \
-            --title "Nailed $VERSION" \
+            --title "$VERSION" \
             --generate-notes \
+            $PRERELEASE_FLAG \
             release-assets/*
