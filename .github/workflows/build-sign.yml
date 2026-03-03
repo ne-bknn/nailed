@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  build-sign:
+  build-app:
     runs-on: macos-14
     steps:
       - name: Checkout
@@ -48,13 +48,11 @@ jobs:
           INSTALLER_CERTIFICATE: ${{ secrets.INSTALLER_CERTIFICATE }}
           INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
         run: |
-          # Install Developer ID Application certificate
           echo "$MACOS_CERTIFICATE" | base64 --decode > signing.p12
           security create-keychain -p "" build.keychain
           security import signing.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
           rm signing.p12
           
-          # Install Developer ID Installer certificate (for pkg signing)
           if [ -n "$INSTALLER_CERTIFICATE" ]; then
             echo "$INSTALLER_CERTIFICATE" | base64 --decode > installer.p12
             security import installer.p12 -k build.keychain -P "$INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign
@@ -65,11 +63,8 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           
-          # Install provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/nailed.provisionprofile
-          
-          # Also save for embedding
           echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > build_profile.provisionprofile
 
       - name: Build PKCS#11 dylib
@@ -86,13 +81,9 @@ jobs:
           CODE_SIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY }}
         run: |
           DYLIB="pkcs11/libnailed_pkcs11.dylib"
-          
-          # Sign the dylib with hardened runtime
           codesign --force --options runtime --timestamp \
             --sign "$CODE_SIGN_IDENTITY" \
             "$DYLIB"
-          
-          # Verify signature
           codesign --verify --verbose=2 "$DYLIB"
           echo "Dylib signature info:"
           codesign -dvv "$DYLIB"
@@ -120,17 +111,14 @@ jobs:
           
           APP="build/export/nailed.app"
           
-          # Embed provisioning profile
           cp build_profile.provisionprofile "$APP/Contents/embedded.provisionprofile"
           
-          # Create entitlements with resolved variables
           sed "s/\$(AppIdentifierPrefix)/${DEVELOPMENT_TEAM}./g" \
             nailed/nailed.entitlements > build/entitlements.plist
           
           echo "Resolved entitlements:"
           cat build/entitlements.plist
           
-          # Sign nested bundles first (inside-out signing)
           find "$APP/Contents/Resources" -name "*.bundle" -type d | while read bundle; do
             echo "Signing bundle: $bundle"
             codesign --force --options runtime --timestamp \
@@ -138,7 +126,6 @@ jobs:
               "$bundle"
           done
           
-          # Sign any frameworks
           if [ -d "$APP/Contents/Frameworks" ]; then
             find "$APP/Contents/Frameworks" -name "*.framework" -type d | while read framework; do
               echo "Signing framework: $framework"
@@ -148,23 +135,16 @@ jobs:
             done
           fi
           
-          # Sign the main app with entitlements
           codesign --force --options runtime --timestamp \
             --entitlements build/entitlements.plist \
             --sign "$CODE_SIGN_IDENTITY" \
             "$APP"
           
-          # Verify signature
           codesign --verify --verbose=2 "$APP"
-          
-          # Show signature info
           echo "Signature info:"
           codesign -dvv "$APP"
-          
-          # Show embedded entitlements
           echo "Embedded entitlements:"
           codesign -d --entitlements - "$APP" 2>/dev/null || true
-          
           echo "Signature verification passed"
 
       - name: Create installer package
@@ -173,7 +153,6 @@ jobs:
         run: |
           chmod +x scripts/build-pkg.sh
           
-          # Extract version from tag or use default
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
@@ -190,15 +169,14 @@ jobs:
           echo "Package created:"
           ls -la build/nailed.pkg
           
-          # Verify package signature
           if [ -n "$INSTALLER_SIGN_IDENTITY" ]; then
             pkgutil --check-signature build/nailed.pkg
           fi
 
-      - name: Upload PKG artifact
+      - name: Upload app PKG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nailed-${{ github.run_id }}
+          name: nailed-pkg
           path: build/nailed.pkg
 
       - name: Submit for notarization
@@ -230,7 +208,6 @@ jobs:
           SUBMISSION_ID=$(cat build/submission-id.txt)
           echo "Waiting for notarization (up to 2 minutes)..."
           
-          # Wait for notarization to complete (timeout after 2 minutes)
           if xcrun notarytool wait "$SUBMISSION_ID" \
             --key ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8 \
             --key-id "$APPLE_API_KEY_ID" \
@@ -240,40 +217,125 @@ jobs:
             echo "Notarization completed, stapling..."
             xcrun stapler staple build/nailed.pkg
             xcrun stapler validate build/nailed.pkg
-            echo "STAPLED=true" >> $GITHUB_ENV
           else
-            echo "Notarization not completed within 2 minutes, use staple.yml workflow later"
-            echo "STAPLED=false" >> $GITHUB_ENV
+            echo "error: Notarization not completed within timeout"
+            exit 1
           fi
           
           rm -rf ~/private_keys
 
-      - name: Upload submission ID
-        if: startsWith(github.ref, 'refs/tags/v') && env.STAPLED == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: notarization-${{ github.run_id }}
-          path: build/submission-id.txt
-
       - name: Upload stapled PKG
-        if: startsWith(github.ref, 'refs/tags/v') && env.STAPLED == 'true'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
-          name: nailed-${{ github.run_id }}-stapled
+          name: nailed-pkg-stapled
           path: build/nailed.pkg
 
+      - name: Upload submission ID
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notarization-submission
+          path: build/submission-id.txt
+
+  build-openvpn:
+    runs-on: macos-14
+    env:
+      OPENSSL_VERSION: "3.5.5"
+      LZO_VERSION: "2.10"
+      LZ4_VERSION: "1.10.0"
+      PKCS11_HELPER_VERSION: "1.30.0"
+      OPENVPN_VERSION: "2.7.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          INSTALLER_CERTIFICATE: ${{ secrets.INSTALLER_CERTIFICATE }}
+          INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > signing.p12
+          security create-keychain -p "" build.keychain
+          security import signing.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+          rm signing.p12
+
+          if [ -n "$INSTALLER_CERTIFICATE" ]; then
+            echo "$INSTALLER_CERTIFICATE" | base64 --decode > installer.p12
+            security import installer.p12 -k build.keychain -P "$INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign
+            rm installer.p12
+          fi
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+
+      - name: Cache source tarballs
+        uses: actions/cache@v4
+        with:
+          path: openvpn-build/_work/sources
+          key: openvpn-sources-${{ env.OPENSSL_VERSION }}-${{ env.LZO_VERSION }}-${{ env.LZ4_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}-${{ env.OPENVPN_VERSION }}
+
+      - name: Cache static libraries
+        uses: actions/cache@v4
+        with:
+          path: openvpn-build/_work/staging
+          key: openvpn-staging-${{ runner.os }}-${{ runner.arch }}-${{ env.OPENSSL_VERSION }}-${{ env.LZO_VERSION }}-${{ env.LZ4_VERSION }}-${{ env.PKCS11_HELPER_VERSION }}
+
+      - name: Build OpenVPN
+        env:
+          CODESIGN_IDENTITY: ${{ vars.CODE_SIGN_IDENTITY }}
+          INSTALLER_IDENTITY: ${{ vars.INSTALLER_SIGN_IDENTITY }}
+        run: |
+          cd openvpn-build
+          chmod +x build-openvpn.sh
+          ./build-openvpn.sh
+
+      - name: Verify build
+        run: |
+          openvpn-build/output/openvpn --version
+          otool -L openvpn-build/output/openvpn
+          codesign -dvv openvpn-build/output/openvpn 2>&1
+          pkgutil --check-signature openvpn-build/output/*.pkg
+
+      - name: Upload OpenVPN binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-pkg
+          path: openvpn-build/output/*.pkg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-app, build-openvpn]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download nailed package
+        uses: actions/download-artifact@v4
+        with:
+          name: nailed-pkg-stapled
+          path: release-assets
+
+      - name: Download OpenVPN package
+        uses: actions/download-artifact@v4
+        with:
+          name: openvpn-pkg
+          path: release-assets
+
+      - name: List release assets
+        run: ls -lh release-assets/
+
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v') && env.STAPLED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           VERSION="${GITHUB_REF#refs/tags/}"
-          
-          # Rename pkg to include version
-          cp build/nailed.pkg "build/nailed-${VERSION}.pkg"
-          
-          # Create release with the stapled pkg
+
+          mv release-assets/nailed.pkg "release-assets/nailed-${VERSION}.pkg"
+
           gh release create "$VERSION" \
             --title "Nailed $VERSION" \
             --generate-notes \
-            "build/nailed-${VERSION}.pkg"
+            release-assets/*
