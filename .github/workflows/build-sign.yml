@@ -300,11 +300,66 @@ jobs:
           codesign -dvv openvpn-build/output/openvpn 2>&1
           pkgutil --check-signature openvpn-build/output/*.pkg
 
-      - name: Upload OpenVPN binary
+      - name: Upload OpenVPN package
         uses: actions/upload-artifact@v4
         with:
           name: openvpn-pkg
           path: openvpn-build/output/*.pkg
+
+      - name: Submit for notarization
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
+
+          xcrun notarytool submit openvpn-build/output/*.pkg \
+            --key ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8 \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_KEY_ISSUER" \
+            --output-format json | tee notarization-result.json
+
+          SUBMISSION_ID=$(python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" < notarization-result.json)
+          echo "Submission ID: $SUBMISSION_ID"
+          echo "$SUBMISSION_ID" > openvpn-submission-id.txt
+
+      - name: Wait for notarization and staple
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY_ISSUER: ${{ secrets.APPLE_API_KEY_ISSUER }}
+        run: |
+          SUBMISSION_ID=$(cat openvpn-submission-id.txt)
+          echo "Waiting for notarization..."
+
+          xcrun notarytool wait "$SUBMISSION_ID" \
+            --key ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8 \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_KEY_ISSUER" \
+            --timeout 10m
+
+          echo "Notarization completed, stapling..."
+          xcrun stapler staple openvpn-build/output/*.pkg
+          xcrun stapler validate openvpn-build/output/*.pkg
+
+          rm -rf ~/private_keys
+
+      - name: Upload stapled OpenVPN package
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-pkg-stapled
+          path: openvpn-build/output/*.pkg
+
+      - name: Upload submission ID
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvpn-notarization-submission
+          path: openvpn-submission-id.txt
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -320,7 +375,7 @@ jobs:
       - name: Download OpenVPN package
         uses: actions/download-artifact@v4
         with:
-          name: openvpn-pkg
+          name: openvpn-pkg-stapled
           path: release-assets
 
       - name: List release assets

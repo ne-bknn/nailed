@@ -298,9 +298,9 @@ log "Stripping binary"
 strip "$OPENVPN_BIN"
 ls -lh "$OPENVPN_BIN"
 
-log "Codesigning"
+log "Codesigning (hardened runtime)"
 echo "  Signing with: ${CODESIGN_IDENTITY}"
-codesign -s "${CODESIGN_IDENTITY}" --timestamp --force "$OPENVPN_BIN"
+codesign -s "${CODESIGN_IDENTITY}" --options runtime --timestamp --force "$OPENVPN_BIN"
 
 log "Copying to output"
 cp "$OPENVPN_BIN" "${OUTPUT_DIR}/openvpn"
