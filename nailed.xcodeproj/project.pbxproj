@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		72A66BBA2E0A91E500171FA5 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 72A66BB92E0A91E500171FA5 /* Crypto */; };
 		72A66BBC2E0A91E800171FA5 /* X509 in Frameworks */ = {isa = PBXBuildFile; productRef = 72A66BBB2E0A91E800171FA5 /* X509 */; };
+		72F42A5D2E8836030017BDC5 /* ArgumentParser in Frameworks */ = {isa = PBXBuildFile; productRef = 72F42A5C2E8836020017BDC5 /* ArgumentParser */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +73,7 @@
 			files = (
 				72A66BBC2E0A91E800171FA5 /* X509 in Frameworks */,
 				72A66BBA2E0A91E500171FA5 /* Crypto in Frameworks */,
+				72F42A5D2E8836030017BDC5 /* ArgumentParser in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -143,6 +145,7 @@
 			packageProductDependencies = (
 				72A66BB92E0A91E500171FA5 /* Crypto */,
 				72A66BBB2E0A91E800171FA5 /* X509 */,
+				72F42A5C2E8836020017BDC5 /* ArgumentParser */,
 			);
 			productName = nailed;
 			productReference = 72A66B832E0A8DA800171FA5 /* nailed.app */;
@@ -229,6 +232,7 @@
 			packageReferences = (
 				72A66BB62E0A919900171FA5 /* XCRemoteSwiftPackageReference "swift-crypto" */,
 				72A66BB72E0A91A000171FA5 /* XCRemoteSwiftPackageReference "swift-certificates" */,
+				72F42A5B2E8836010017BDC5 /* XCRemoteSwiftPackageReference "swift-argument-parser" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 72A66B842E0A8DA800171FA5 /* Products */;
@@ -635,6 +639,14 @@
 				minimumVersion = 1.10.0;
 			};
 		};
+		72F42A5B2E8836010017BDC5 /* XCRemoteSwiftPackageReference "swift-argument-parser" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-argument-parser.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -647,6 +659,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 72A66BB72E0A91A000171FA5 /* XCRemoteSwiftPackageReference "swift-certificates" */;
 			productName = X509;
+		};
+		72F42A5C2E8836020017BDC5 /* ArgumentParser */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 72F42A5B2E8836010017BDC5 /* XCRemoteSwiftPackageReference "swift-argument-parser" */;
+			productName = ArgumentParser;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

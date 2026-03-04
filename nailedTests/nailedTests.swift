@@ -65,37 +65,34 @@ struct nailedTests {
     }
 }
 
-// MARK: - RuntimeMode Tests
+// MARK: - CLI Invocation Detection Tests
 
-struct RuntimeModeTests {
+struct CLIInvocationTests {
 
-    @Test func defaultIsApp() {
-        let mode = RuntimeMode.resolve(from: [])
-        guard case .app = mode else { return #expect(Bool(false)) }
+    @Test func knownSubcommandIsCliInvocation() {
+        #expect(NailedCommand.isCliInvocation("status"))
+        #expect(NailedCommand.isCliInvocation("generate-identity"))
+        #expect(NailedCommand.isCliInvocation("generate-csr"))
+        #expect(NailedCommand.isCliInvocation("import-certificate"))
+        #expect(NailedCommand.isCliInvocation("export-certificate"))
+        #expect(NailedCommand.isCliInvocation("delete-identity"))
+        #expect(NailedCommand.isCliInvocation("enable-login-item"))
+        #expect(NailedCommand.isCliInvocation("disable-login-item"))
     }
 
-    @Test func cliCommand() {
-        let mode = RuntimeMode.resolve(from: ["status"])
-        guard case .cli(let cmd, _) = mode else { return #expect(Bool(false)) }
-        #expect(cmd == "status")
+    @Test func helpFlagsAreCliInvocations() {
+        #expect(NailedCommand.isCliInvocation("help"))
+        #expect(NailedCommand.isCliInvocation("--help"))
+        #expect(NailedCommand.isCliInvocation("-h"))
+        #expect(NailedCommand.isCliInvocation("--version"))
     }
 
-    @Test func cliCommandPreservesFullArgs() {
-        let mode = RuntimeMode.resolve(from: ["generate-csr", "My Name", "-o", "out.csr"])
-        guard case .cli(let cmd, let all) = mode else { return #expect(Bool(false)) }
-        #expect(cmd == "generate-csr")
-        #expect(all == ["generate-csr", "My Name", "-o", "out.csr"])
+    @Test func unknownArgIsNotCliInvocation() {
+        #expect(!NailedCommand.isCliInvocation("--unknown-flag"))
     }
 
-    @Test func unknownArgFallsToApp() {
-        let mode = RuntimeMode.resolve(from: ["--unknown-flag"])
-        guard case .app = mode else { return #expect(Bool(false)) }
-    }
-
-    @Test func daemonArgFallsToApp() {
-        // "daemon" is no longer a special mode; it falls through to .app
-        let mode = RuntimeMode.resolve(from: ["daemon"])
-        guard case .app = mode else { return #expect(Bool(false)) }
+    @Test func daemonIsNotCliInvocation() {
+        #expect(!NailedCommand.isCliInvocation("daemon"))
     }
 }
 

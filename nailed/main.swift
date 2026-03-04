@@ -3,15 +3,12 @@
 import Foundation
 import AppKit
 
-let args = Array(CommandLine.arguments.dropFirst())
-let mode = RuntimeMode.resolve(from: args)
+let args = CommandLine.arguments.dropFirst()
 
-switch mode {
-case .cli(_, _):
+if let first = args.first, NailedCommand.isCliInvocation(first) {
     NSApplication.shared.setActivationPolicy(.prohibited)
-    NailedCLI.run(arguments: args)
-
-case .app:
+    NailedCommand.main()
+} else {
     NSApplication.shared.setActivationPolicy(.accessory)
     NailedApp.main()
 }

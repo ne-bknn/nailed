@@ -1,86 +1,86 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Foundation
+import ArgumentParser
 import ServiceManagement
 
-/// Command-line interface for nailed — manage Secure Enclave identities without the GUI.
-enum NailedCLI {
-    
-    private static let commands: Set<String> = [
-        "status", "generate-identity", "generate-csr",
-        "import-certificate", "export-certificate", "delete-identity",
-        "enable-login-item", "disable-login-item"
-    ]
-    
-    /// Returns true if the argument looks like a CLI command (not a GUI launch).
-    static func isCommand(_ arg: String) -> Bool {
-        commands.contains(arg) || ["help", "--help", "-h", "version", "--version"].contains(arg)
-    }
-    
-    /// Main entry point — parse arguments, run the command, then exit.
-    static func run(arguments: [String], logger: any LoggerProtocol = NailedLogger.shared) -> Never {
-        let log = logger
-        guard let command = arguments.first else {
-            printUsage()
-            exit(1)
+struct NailedCommand: ParsableCommand {
+
+    static let configuration = CommandConfiguration(
+        commandName: "nailed",
+        abstract: "Secure Enclave identity manager",
+        version: AppVersion.version,
+        subcommands: [
+            Status.self,
+            GenerateIdentity.self,
+            GenerateCSR.self,
+            ImportCertificate.self,
+            ExportCertificate.self,
+            DeleteIdentity.self,
+            EnableLoginItem.self,
+            DisableLoginItem.self,
+        ],
+        helpNames: [.short, .long]
+    )
+
+    /// Returns true when the first CLI argument matches a known subcommand
+    /// or a built-in flag like --help / --version, so that `main.swift` can
+    /// distinguish CLI invocations from a bare GUI launch.
+    static func isCliInvocation(_ arg: String) -> Bool {
+        let subcommandNames = configuration.subcommands.map {
+            $0._commandName
         }
-        
-        log.info("CLI command: \(command)", category: "cli")
-        let subArgs = Array(arguments.dropFirst())
-        
-        switch command {
-        case "help", "--help", "-h":
-            printUsage()
-        case "version", "--version":
-            print("nailed \(AppVersion.version)")
-        case "status":
-            runStatus(log: log)
-        case "generate-identity":
-            runGenerateIdentity(log: log)
-        case "generate-csr":
-            runGenerateCSR(arguments: subArgs, log: log)
-        case "import-certificate":
-            runImportCertificate(arguments: subArgs, log: log)
-        case "export-certificate":
-            runExportCertificate(arguments: subArgs, log: log)
-        case "delete-identity":
-            runDeleteIdentity(arguments: subArgs, log: log)
-        case "enable-login-item":
-            runEnableLoginItem(log: log)
-        case "disable-login-item":
-            runDisableLoginItem(log: log)
-        default:
-            printError("unknown command: \(command)")
-            printUsage()
-            exit(1)
-        }
-        
-        exit(0)
+        return subcommandNames.contains(arg)
+            || ["help", "--help", "-h", "--version"].contains(arg)
     }
-    
-    // MARK: - Commands
-    
-    private static func runStatus(log: any LoggerProtocol) {
-        let core = initCore(log: log)
-        
-        do {
+}
+
+// MARK: - Helpers
+
+private func initCore() throws -> NailedCore {
+    do {
+        return try NailedCore(logger: NailedLogger.shared)
+    } catch {
+        throw ValidationError("failed to initialize: \(error.localizedDescription)")
+    }
+}
+
+private func printStderr(_ message: String, terminator: String = "\n") {
+    FileHandle.standardError.write(Data((message + terminator).utf8))
+}
+
+// MARK: - status
+
+extension NailedCommand {
+
+    struct Status: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Show identity and certificate status"
+        )
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: status", category: "cli")
+
             guard try core.hasIdentity() else {
                 print("Identity: not found")
                 print("  No Secure Enclave key pair exists. Run 'generate-identity' to create one.")
-                exit(0)
+                return
             }
-            
+
             print("Identity: present")
             print("  Private key available in Secure Enclave")
-            
+
             guard try core.hasCertificate() else {
                 print("  Certificate: not imported")
                 print("  Generate a CSR with 'generate-csr' and import the signed certificate with 'import-certificate'.")
-                exit(0)
+                return
             }
-            
+
             print("  Certificate: imported")
-            
+
             if let info = try core.getCertificateInfo() {
                 if let cn = info.commonName {
                     print("    Subject CN:  \(cn)")
@@ -88,7 +88,7 @@ enum NailedCLI {
                 if let issuer = info.issuerCommonName {
                     print("    Issuer CN:   \(issuer)")
                 }
-                
+
                 let df = DateFormatter()
                 df.dateStyle = .medium
                 df.timeStyle = .short
@@ -96,138 +96,121 @@ enum NailedCLI {
                 print("    Not after:   \(df.string(from: info.notValidAfter))")
                 print("    Valid now:   \(info.isValid ? "yes" : "NO")")
             }
-            
-            exit(0)
-        } catch {
-            log.error("Failed to query identity status: \(error.localizedDescription)", category: "cli")
-            die("failed to query identity status: \(error.localizedDescription)")
         }
     }
-    
-    private static func runGenerateIdentity(log: any LoggerProtocol) {
-        let core = initCore(log: log)
-        
-        do {
+}
+
+// MARK: - generate-identity
+
+extension NailedCommand {
+
+    struct GenerateIdentity: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "generate-identity",
+            abstract: "Generate a new Secure Enclave key pair"
+        )
+
+        @Flag(name: [.short, .long], help: "Skip confirmation when replacing an existing identity.")
+        var force = false
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: generate-identity", category: "cli")
+
             if try core.hasIdentity() {
-                printStderr("warning: existing identity will be replaced")
+                if !force {
+                    printStderr("An existing identity will be permanently destroyed and replaced.")
+                    printStderr("Type 'yes' to confirm: ", terminator: "")
+                    guard let response = readLine(), response.lowercased() == "yes" else {
+                        printStderr("Aborted.")
+                        throw ExitCode(1)
+                    }
+                }
             }
-            
+
             try core.generateIdentity()
             print("Identity generated successfully.")
             print("  A new EC P-256 key pair has been created in the Secure Enclave.")
             print("  Next step: generate a CSR with 'generate-csr <common-name>'")
-            exit(0)
-        } catch {
-            log.error("Failed to generate identity: \(error.localizedDescription)", category: "cli")
-            die("failed to generate identity: \(error.localizedDescription)")
         }
     }
-    
-    private static func runGenerateCSR(arguments: [String], log: any LoggerProtocol) {
-        var commonName: String?
-        var outputPath: String?
-        
-        var i = 0
-        while i < arguments.count {
-            switch arguments[i] {
-            case "-o", "--output":
-                guard i + 1 < arguments.count else {
-                    die("--output requires a file path argument")
-                }
-                outputPath = arguments[i + 1]
-                i += 2
-            case "--help", "-h":
-                print("Usage: nailed generate-csr <common-name> [-o FILE]")
-                print("")
-                print("Generate a Certificate Signing Request for the Secure Enclave identity.")
-                print("")
-                print("Arguments:")
-                print("  <common-name>    The Common Name (CN) for the CSR subject")
-                print("")
-                print("Options:")
-                print("  -o, --output FILE   Write PEM to FILE instead of stdout")
-                exit(0)
-            default:
-                if arguments[i].hasPrefix("-") {
-                    die("unknown option: \(arguments[i]). See 'nailed generate-csr --help'")
-                }
-                if commonName == nil {
-                    commonName = arguments[i]
-                } else {
-                    die("unexpected argument: \(arguments[i]). Common name must be a single quoted string if it contains spaces.")
-                }
-                i += 1
-            }
-        }
-        
-        guard let cn = commonName else {
-            die("missing required argument: <common-name>. See 'nailed generate-csr --help'")
-        }
-        
-        let core = initCore(log: log)
-        
-        do {
+}
+
+// MARK: - generate-csr
+
+extension NailedCommand {
+
+    struct GenerateCSR: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "generate-csr",
+            abstract: "Generate a Certificate Signing Request for the Secure Enclave identity"
+        )
+
+        @Argument(help: "The Common Name (CN) for the CSR subject.")
+        var commonName: String
+
+        @Option(name: [.short, .customLong("output")], help: "Write PEM to FILE instead of stdout.")
+        var output: String?
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: generate-csr", category: "cli")
+
             guard try core.hasIdentity() else {
-                die("no identity found. Run 'generate-identity' first.")
+                throw ValidationError("no identity found. Run 'generate-identity' first.")
             }
-            
-            let csrDER = try core.generateCSR(commonName: cn)
+
+            let csrDER = try core.generateCSR(commonName: commonName)
             let pem = NailedCore.derToPEM(csrDER, label: "CERTIFICATE REQUEST")
-            
-            if let path = outputPath {
+
+            if let path = output {
                 try pem.write(toFile: path, atomically: true, encoding: .utf8)
                 printStderr("CSR written to \(path)")
             } else {
                 print(pem, terminator: "")
             }
-            
-            exit(0)
-        } catch {
-            log.error("Failed to generate CSR: \(error.localizedDescription)", category: "cli")
-            die("failed to generate CSR: \(error.localizedDescription)")
         }
     }
-    
-    private static func runImportCertificate(arguments: [String], log: any LoggerProtocol) {
-        var filePath: String?
-        
-        for arg in arguments {
-            if arg == "--help" || arg == "-h" {
-                print("Usage: nailed import-certificate <FILE>")
-                print("")
-                print("Import a signed certificate (PEM or DER) for the Secure Enclave identity.")
-                print("")
-                print("Arguments:")
-                print("  <FILE>    Path to the certificate file (.pem, .crt, .der)")
-                exit(0)
-            }
-            if arg.hasPrefix("-") {
-                die("unknown option: \(arg). See 'nailed import-certificate --help'")
-            }
-            if filePath == nil {
-                filePath = arg
-            } else {
-                die("unexpected argument: \(arg)")
-            }
-        }
-        
-        guard let path = filePath else {
-            die("missing required argument: <FILE>. See 'nailed import-certificate --help'")
-        }
-        
-        let core = initCore(log: log)
-        
-        do {
+}
+
+// MARK: - import-certificate
+
+extension NailedCommand {
+
+    struct ImportCertificate: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "import-certificate",
+            abstract: "Import a signed certificate (PEM or DER) for the Secure Enclave identity"
+        )
+
+        @Argument(help: "Path to the certificate file (.pem, .crt, .der).")
+        var file: String
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: import-certificate", category: "cli")
+
             guard try core.hasIdentity() else {
-                die("no identity found. Run 'generate-identity' first.")
+                throw ValidationError("no identity found. Run 'generate-identity' first.")
             }
-            
-            let fileData = try Data(contentsOf: URL(fileURLWithPath: path))
+
+            let fileData = try Data(contentsOf: URL(fileURLWithPath: file))
             let derData = NailedCore.parseCertificateData(from: fileData)
-            try core.importCertificate(certificateData: derData)
-            
+
+            do {
+                try core.importCertificate(certificateData: derData)
+            } catch NailedCoreError.certificateAlreadyExists {
+                throw ValidationError("certificate already exists in the keychain")
+            }
+
             print("Certificate imported successfully.")
-            
+
             if let info = try core.getCertificateInfo() {
                 if let cn = info.commonName {
                     print("  Subject CN: \(cn)")
@@ -236,190 +219,124 @@ enum NailedCLI {
                     print("  Issuer CN:  \(issuer)")
                 }
             }
-            
-            exit(0)
-        } catch let error as NailedCoreError {
-            log.error("Certificate import error: \(error.localizedDescription)", category: "cli")
-            switch error {
-            case .certificateAlreadyExists:
-                die("certificate already exists in the keychain")
-            default:
-                die(error.localizedDescription)
-            }
-        } catch {
-            log.error("Failed to import certificate: \(error.localizedDescription)", category: "cli")
-            die("failed to import certificate: \(error.localizedDescription)")
         }
     }
-    
-    private static func runExportCertificate(arguments: [String], log: any LoggerProtocol) {
-        var outputPath: String?
-        
-        var i = 0
-        while i < arguments.count {
-            switch arguments[i] {
-            case "-o", "--output":
-                guard i + 1 < arguments.count else {
-                    die("--output requires a file path argument")
-                }
-                outputPath = arguments[i + 1]
-                i += 2
-            case "--help", "-h":
-                print("Usage: nailed export-certificate [-o FILE]")
-                print("")
-                print("Export the certificate for the Secure Enclave identity in PEM format.")
-                print("")
-                print("Options:")
-                print("  -o, --output FILE   Write PEM to FILE instead of stdout")
-                exit(0)
-            default:
-                die("unexpected argument: \(arguments[i]). See 'nailed export-certificate --help'")
-            }
-        }
-        
-        let core = initCore(log: log)
-        
-        do {
+}
+
+// MARK: - export-certificate
+
+extension NailedCommand {
+
+    struct ExportCertificate: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "export-certificate",
+            abstract: "Export the certificate for the Secure Enclave identity in PEM format"
+        )
+
+        @Option(name: [.short, .customLong("output")], help: "Write PEM to FILE instead of stdout.")
+        var output: String?
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: export-certificate", category: "cli")
+
             guard try core.hasIdentity() else {
-                die("no identity found. Run 'generate-identity' first.")
+                throw ValidationError("no identity found. Run 'generate-identity' first.")
             }
-            
+
             guard try core.hasCertificate() else {
-                die("no certificate imported yet. Run 'import-certificate' first.")
+                throw ValidationError("no certificate imported yet. Run 'import-certificate' first.")
             }
-            
+
             guard let certDER = try core.exportCertificate() else {
-                die("failed to export certificate data")
+                throw ValidationError("failed to export certificate data")
             }
-            
+
             let pem = NailedCore.derToPEM(certDER, label: "CERTIFICATE")
-            
-            if let path = outputPath {
+
+            if let path = output {
                 try pem.write(toFile: path, atomically: true, encoding: .utf8)
                 printStderr("Certificate written to \(path)")
             } else {
                 print(pem, terminator: "")
             }
-            
-            exit(0)
-        } catch {
-            log.error("Failed to export certificate: \(error.localizedDescription)", category: "cli")
-            die("failed to export certificate: \(error.localizedDescription)")
         }
     }
-    
-    private static func runDeleteIdentity(arguments: [String], log: any LoggerProtocol) {
+}
+
+// MARK: - delete-identity
+
+extension NailedCommand {
+
+    struct DeleteIdentity: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "delete-identity",
+            abstract: "Delete the Secure Enclave identity (key pair and certificate). This action cannot be undone."
+        )
+
+        @Flag(name: [.short, .long], help: "Skip confirmation prompt.")
         var force = false
-        
-        for arg in arguments {
-            switch arg {
-            case "--force", "-f":
-                force = true
-            case "--help", "-h":
-                print("Usage: nailed delete-identity [--force]")
-                print("")
-                print("Delete the Secure Enclave identity (key pair and certificate).")
-                print("This action cannot be undone.")
-                print("")
-                print("Options:")
-                print("  -f, --force   Skip confirmation prompt")
-                exit(0)
-            default:
-                die("unexpected argument: \(arg). See 'nailed delete-identity --help'")
-            }
-        }
-        
-        let core = initCore(log: log)
-        
-        do {
+
+        func run() throws {
+            let log = NailedLogger.shared
+            let core = try initCore()
+
+            log.info("CLI command: delete-identity", category: "cli")
+
             guard try core.hasIdentity() else {
                 printStderr("No identity to delete.")
-                exit(0)
+                return
             }
-            
+
             if !force {
                 printStderr("This will permanently delete the Secure Enclave identity (key + certificate).")
                 printStderr("Type 'yes' to confirm: ", terminator: "")
                 guard let response = readLine(), response.lowercased() == "yes" else {
                     printStderr("Aborted.")
-                    exit(1)
+                    throw ExitCode(1)
                 }
             }
-            
+
             try core.deleteIdentity()
             print("Identity deleted.")
-            exit(0)
-        } catch {
-            log.error("Failed to delete identity: \(error.localizedDescription)", category: "cli")
-            die("failed to delete identity: \(error.localizedDescription)")
         }
     }
-    
-    private static func runEnableLoginItem(log: any LoggerProtocol) {
-        do {
+}
+
+// MARK: - enable-login-item
+
+extension NailedCommand {
+
+    struct EnableLoginItem: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "enable-login-item",
+            abstract: "Register nailed to launch at login"
+        )
+
+        func run() throws {
+            NailedLogger.shared.info("CLI command: enable-login-item", category: "cli")
             try SMAppService.mainApp.register()
             print("Login item enabled. nailed will launch at login.")
-            exit(0)
-        } catch {
-            log.error("Failed to enable login item: \(error.localizedDescription)", category: "cli")
-            die("failed to enable login item: \(error.localizedDescription)")
         }
     }
+}
 
-    private static func runDisableLoginItem(log: any LoggerProtocol) {
-        do {
+// MARK: - disable-login-item
+
+extension NailedCommand {
+
+    struct DisableLoginItem: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "disable-login-item",
+            abstract: "Remove nailed from login items"
+        )
+
+        func run() throws {
+            NailedLogger.shared.info("CLI command: disable-login-item", category: "cli")
             try SMAppService.mainApp.unregister()
             print("Login item disabled.")
-            exit(0)
-        } catch {
-            log.error("Failed to disable login item: \(error.localizedDescription)", category: "cli")
-            die("failed to disable login item: \(error.localizedDescription)")
         }
-    }
-
-    // MARK: - Helpers
-    
-    private static func initCore(log: any LoggerProtocol) -> NailedCore {
-        do {
-            return try NailedCore(logger: log)
-        } catch {
-            die("failed to initialize: \(error.localizedDescription)")
-        }
-    }
-    
-    private static func printUsage() {
-        let usage = """
-        nailed \(AppVersion.version) — Secure Enclave identity manager
-
-        Usage: nailed <command> [options]
-
-        Commands:
-          status                          Show identity and certificate status
-          generate-identity               Generate a new Secure Enclave key pair
-          generate-csr <CN> [-o FILE]     Generate a Certificate Signing Request
-          import-certificate <FILE>       Import a signed certificate (PEM or DER)
-          export-certificate [-o FILE]    Export the certificate in PEM format
-          delete-identity [--force]       Delete the identity (irreversible)
-          enable-login-item               Register nailed to launch at login
-          disable-login-item              Remove nailed from login items
-
-        Run 'nailed <command> --help' for details on a specific command.
-
-        When invoked without a command, the menu bar service starts (signing server + status icon).
-        """
-        print(usage)
-    }
-    
-    private static func printError(_ message: String) {
-        printStderr("error: \(message)")
-    }
-    
-    private static func printStderr(_ message: String, terminator: String = "\n") {
-        FileHandle.standardError.write(Data((message + terminator).utf8))
-    }
-    
-    private static func die(_ message: String) -> Never {
-        printError(message)
-        exit(1)
     }
 }
