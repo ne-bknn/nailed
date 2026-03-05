@@ -300,17 +300,27 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     pad_string(pInfo->manufacturerID, NAILED_MANUFACTURER_ID, 32);
     pad_string(pInfo->model, NAILED_TOKEN_MODEL, 16);
     memcpy(pInfo->serialNumber, NAILED_TOKEN_SERIAL, 16);
-    
-    /* Note: CKF_HW_SLOT is a slot flag, not a token flag - don't use it here!
-     * CKF_LOGIN_REQUIRED (0x04) is NOT set - login is optional for this token */
-    pInfo->flags = CKF_TOKEN_INITIALIZED | CKF_PROTECTED_AUTHENTICATION_PATH | CKF_USER_PIN_INITIALIZED;
+
+    /* Dynamic flags based on key protection type */
+    nailed_key_type_t key_type = NAILED_KEY_TYPE_USER_PRESENCE;
+    nailed_client_get_key_type(&g_client, &key_type);
+
+    CK_FLAGS flags = CKF_TOKEN_INITIALIZED | CKF_USER_PIN_INITIALIZED;
+    if (key_type == NAILED_KEY_TYPE_APPLICATION_PASSWORD) {
+        flags |= CKF_LOGIN_REQUIRED;
+        pInfo->ulMinPinLen = 1;
+        pInfo->ulMaxPinLen = 255;
+    } else {
+        flags |= CKF_PROTECTED_AUTHENTICATION_PATH;
+        pInfo->ulMinPinLen = 0;
+        pInfo->ulMaxPinLen = 0;
+    }
+    pInfo->flags = flags;
     
     pInfo->ulMaxSessionCount = CK_EFFECTIVELY_INFINITE;
     pInfo->ulSessionCount = g_session_count;
     pInfo->ulMaxRwSessionCount = CK_EFFECTIVELY_INFINITE;
     pInfo->ulRwSessionCount = 0;
-    pInfo->ulMaxPinLen = 0;
-    pInfo->ulMinPinLen = 0;
     pInfo->ulTotalPublicMemory = CK_UNAVAILABLE_INFORMATION;
     pInfo->ulFreePublicMemory = CK_UNAVAILABLE_INFORMATION;
     pInfo->ulTotalPrivateMemory = CK_UNAVAILABLE_INFORMATION;
@@ -321,8 +331,8 @@ CK_RV C_GetTokenInfo(CK_SLOT_ID slotID, CK_TOKEN_INFO_PTR pInfo)
     pInfo->firmwareVersion.minor = 0;
     memset(pInfo->utcTime, ' ', 16);
     
-    DEBUG_LOG("  -> label='%.32s', model='%.16s', serial='%.16s', flags=0x%lx",
-              pInfo->label, pInfo->model, pInfo->serialNumber, (unsigned long)pInfo->flags);
+    DEBUG_LOG("  -> label='%.32s', model='%.16s', serial='%.16s', flags=0x%lx, key_type=%d",
+              pInfo->label, pInfo->model, pInfo->serialNumber, (unsigned long)pInfo->flags, key_type);
     return CKR_OK;
 }
 
@@ -508,7 +518,6 @@ CK_RV C_SetOperationState(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pOperationStat
 
 CK_RV C_Login(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR pPin, CK_ULONG ulPinLen)
 {
-    /* We use protected authentication path (biometrics), so PIN is ignored */
     if (!g_initialized) return CKR_CRYPTOKI_NOT_INITIALIZED;
     
     pthread_mutex_lock(&g_mutex);
@@ -517,6 +526,16 @@ CK_RV C_Login(CK_SESSION_HANDLE hSession, CK_USER_TYPE userType, CK_UTF8CHAR_PTR
     if (!session) {
         pthread_mutex_unlock(&g_mutex);
         return CKR_SESSION_HANDLE_INVALID;
+    }
+
+    /* Forward PIN to nailed if provided (application-password keys) */
+    if (pPin != NULL_PTR && ulPinLen > 0) {
+        nailed_result_t result = nailed_client_login(&g_client, pPin, ulPinLen);
+        if (result != NAILED_OK) {
+            pthread_mutex_unlock(&g_mutex);
+            DEBUG_LOG("C_Login: nailed_client_login failed (%d)", result);
+            return CKR_PIN_INCORRECT;
+        }
     }
     
     /* Update session state */

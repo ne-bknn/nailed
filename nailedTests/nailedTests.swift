@@ -24,13 +24,19 @@ final class MockNailedCore: NailedCoreProtocol {
     var exportedCertificate: Data? = nil
     var exportedPublicKey: Data? = nil
     var generatedCSR: Data = Data()
+    var stubbedProtectionType: KeyProtectionType = .userPresence
 
     var generateIdentityCalled = false
+    var generateIdentityProtectionType: KeyProtectionType?
     var deleteIdentityCalled = false
     var importedCertificateData: Data? = nil
+    var lastSignPassword: Data? = nil
 
     func hasIdentity() throws -> Bool { identityExists }
-    func generateIdentity() throws { generateIdentityCalled = true }
+    func generateIdentity(protectionType: KeyProtectionType) throws {
+        generateIdentityCalled = true
+        generateIdentityProtectionType = protectionType
+    }
     func hasCertificate() throws -> Bool { certificateExists }
     func getCertificateInfo() throws -> CertificateInfo? { stubbedCertificateInfo }
     func generateCSR(commonName: String) throws -> Data { generatedCSR }
@@ -39,8 +45,14 @@ final class MockNailedCore: NailedCoreProtocol {
     }
     func exportCertificate() throws -> Data? { exportedCertificate }
     func exportPublicKey() throws -> Data? { exportedPublicKey }
-    func sign(data: Data) throws -> Data { signResult }
+    func sign(data: Data, password: Data?) throws -> Data {
+        lastSignPassword = password
+        return signResult
+    }
     func deleteIdentity() throws { deleteIdentityCalled = true }
+    var protectionType: KeyProtectionType {
+        get throws { stubbedProtectionType }
+    }
 }
 
 struct nailedTests {
@@ -53,15 +65,16 @@ struct nailedTests {
         mock.identityExists = true
         #expect(try core.hasIdentity() == true)
 
-        try core.generateIdentity()
+        try core.generateIdentity(protectionType: .userPresence)
         #expect(mock.generateIdentityCalled)
+        #expect(mock.generateIdentityProtectionType == .userPresence)
 
         try core.deleteIdentity()
         #expect(mock.deleteIdentityCalled)
 
         let testData = Data([0x01, 0x02, 0x03])
         mock.signResult = testData
-        #expect(try core.sign(data: Data()) == testData)
+        #expect(try core.sign(data: Data(), password: nil) == testData)
     }
 }
 
@@ -96,194 +109,203 @@ struct CLIInvocationTests {
     }
 }
 
-// MARK: - ManagementCommandHandler Tests
+// MARK: - Session Tests
 
-struct ManagementCommandHandlerTests {
+struct SessionTests {
 
-    private func makeHandler(
+    private func makeSession(
         identityExists: Bool = true,
         certificateExists: Bool = true,
         signResult: Data = Data(repeating: 0xAB, count: 8),
-        exportedCertificate: Data? = Data(repeating: 0xCD, count: 16)
-    ) -> (ManagementCommandHandler, MockNailedCore) {
+        exportedCertificate: Data? = Data(repeating: 0xCD, count: 16),
+        protectionType: KeyProtectionType = .userPresence
+    ) -> (Session, MockNailedCore) {
         let mock = MockNailedCore()
         mock.identityExists = identityExists
         mock.certificateExists = certificateExists
         mock.signResult = signResult
         mock.exportedCertificate = exportedCertificate
-        return (ManagementCommandHandler(core: mock, logger: MockLogger()), mock)
+        mock.stubbedProtectionType = protectionType
+        return (Session(core: mock, logger: MockLogger()), mock)
     }
 
-    // MARK: - Simple commands
-
-    @Test func infoReturnsVersion() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">INFO")
-        #expect(results == ["version 5\r\n"])
+    private func request(_ json: String, session: Session) -> [String: Any] {
+        let responseData = session.handleRequest(Data(json.utf8))
+        return (try? JSONSerialization.jsonObject(with: responseData) as? [String: Any]) ?? [:]
     }
 
-    @Test func holdReturnsSuccess() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">HOLD")
-        #expect(results == ["SUCCESS: hold release\r\n"])
+    // MARK: - VERSION
+
+    @Test func versionReturnsOk() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"VERSION"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["protocol"] as? Int == 1)
+        #expect(resp["version"] as? String != nil)
     }
 
-    @Test func stateReturnsSuccess() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">STATE")
-        #expect(results == ["SUCCESS: state query\r\n"])
+    // MARK: - KEY_TYPE
+
+    @Test func keyTypeReturnsUserPresence() {
+        let (session, _) = makeSession(protectionType: .userPresence)
+        let resp = request(#"{"cmd":"KEY_TYPE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["type"] as? String == "user-presence")
     }
 
-    // MARK: - Unknown / ignored input
+    @Test func keyTypeReturnsApplicationPassword() {
+        let (session, _) = makeSession(protectionType: .applicationPassword)
+        let resp = request(#"{"cmd":"KEY_TYPE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["type"] as? String == "application-password")
+    }
+
+    @Test func keyTypeNoIdentity() {
+        let (session, _) = makeSession(identityExists: false)
+        let resp = request(#"{"cmd":"KEY_TYPE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("identity") == true)
+    }
+
+    // MARK: - LOGIN
+
+    @Test func loginStoresPin() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"LOGIN","pin":"s3cret"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+    }
+
+    @Test func loginEmptyPinFails() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"LOGIN","pin":""}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+    }
+
+    @Test func loginMissingPinFails() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"LOGIN"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+    }
+
+    // MARK: - CERTIFICATE
+
+    @Test func certificateReturnsBase64() {
+        let certData = Data(repeating: 0xEE, count: 100)
+        let (session, _) = makeSession(exportedCertificate: certData)
+        let resp = request(#"{"cmd":"CERTIFICATE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["certificate"] as? String == certData.base64EncodedString())
+    }
+
+    @Test func certificateNoIdentity() {
+        let (session, _) = makeSession(identityExists: false)
+        let resp = request(#"{"cmd":"CERTIFICATE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("identity") == true)
+    }
+
+    @Test func certificateNoCertificate() {
+        let (session, _) = makeSession(certificateExists: false)
+        let resp = request(#"{"cmd":"CERTIFICATE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("certificate") == true)
+    }
+
+    @Test func certificateExportReturnsNil() {
+        let (session, _) = makeSession(exportedCertificate: nil)
+        let resp = request(#"{"cmd":"CERTIFICATE"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("export") == true)
+    }
+
+    // MARK: - SIGN
+
+    @Test func signReturnsSignature() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0x01, 0x02, 0x03])
+        let (session, _) = makeSession(signResult: sig)
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())","algorithm":"ECDSA"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["signature"] as? String == sig.base64EncodedString())
+    }
+
+    @Test func signWithoutAlgorithm() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0x01, 0x02, 0x03])
+        let (session, _) = makeSession(signResult: sig)
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())"}"#, session: session)
+        #expect(resp["ok"] as? Bool == true)
+        #expect(resp["signature"] as? String == sig.base64EncodedString())
+    }
+
+    @Test func signUnsupportedAlgorithm() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())","algorithm":"RSA"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("RSA") == true)
+    }
+
+    @Test func signMissingDigest() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"SIGN"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("digest") == true)
+    }
+
+    @Test func signInvalidBase64() {
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"SIGN","digest":"not-valid!!!"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("base64") == true)
+    }
+
+    @Test func signNoIdentity() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let (session, _) = makeSession(identityExists: false)
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("identity") == true)
+    }
+
+    // MARK: - PIN flow
+
+    @Test func signAfterLoginPassesPinToCore() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0xAA])
+        let (session, mock) = makeSession(signResult: sig)
+
+        _ = request(#"{"cmd":"LOGIN","pin":"myPin"}"#, session: session)
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())"}"#, session: session)
+
+        #expect(resp["ok"] as? Bool == true)
+        #expect(mock.lastSignPassword == Data("myPin".utf8))
+    }
+
+    @Test func signWithoutLoginPassesNilPassword() {
+        let digest = Data(repeating: 0x42, count: 32)
+        let sig = Data([0xBB])
+        let (session, mock) = makeSession(signResult: sig)
+
+        let resp = request(#"{"cmd":"SIGN","digest":"\#(digest.base64EncodedString())"}"#, session: session)
+
+        #expect(resp["ok"] as? Bool == true)
+        #expect(mock.lastSignPassword == nil)
+    }
+
+    // MARK: - Unknown command / invalid JSON
 
     @Test func unknownCommandReturnsError() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">FOO")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains(">FOO"))
+        let (session, _) = makeSession()
+        let resp = request(#"{"cmd":"FOO"}"#, session: session)
+        #expect(resp["ok"] as? Bool == false)
+        #expect((resp["error"] as? String)?.contains("FOO") == true)
     }
 
-    @Test func linesWithoutPrefixAreSkipped() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage("plain text\nno prefix here")
-        #expect(results.isEmpty)
-    }
-
-    @Test func emptyMessageReturnsNothing() {
-        let (handler, _) = makeHandler()
-        #expect(handler.handleMessage("").isEmpty)
-        #expect(handler.handleMessage("   ").isEmpty)
-        #expect(handler.handleMessage("\n\n").isEmpty)
-    }
-
-    // MARK: - Multi-line
-
-    @Test func multiLineProducesMultipleResponses() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">INFO\n>HOLD\n>STATE")
-        #expect(results.count == 3)
-        #expect(results[0] == "version 5\r\n")
-        #expect(results[1] == "SUCCESS: hold release\r\n")
-        #expect(results[2] == "SUCCESS: state query\r\n")
-    }
-
-    @Test func multiLineMixedWithNonCommands() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage("hello\n>INFO\nignored\n>HOLD")
-        #expect(results.count == 2)
-    }
-
-    // MARK: - PK_SIGN
-
-    @Test func pkSignWithECDSASuffix() {
-        let digest = Data(repeating: 0x42, count: 32)
-        let sig = Data([0x01, 0x02, 0x03])
-        let (handler, _) = makeHandler(signResult: sig)
-
-        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("pk-sig\r\n"))
-        #expect(results[0].hasSuffix("END\r\n"))
-        #expect(results[0].contains(sig.base64EncodedString()))
-    }
-
-    @Test func pkSignWithoutAlgorithmSuffix() {
-        let digest = Data(repeating: 0x42, count: 32)
-        let sig = Data([0x01, 0x02, 0x03])
-        let (handler, _) = makeHandler(signResult: sig)
-
-        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString())")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("pk-sig\r\n"))
-    }
-
-    @Test func pkSignInvalidBase64() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">PK_SIGN:not-valid-base64!!!")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("base64"))
-    }
-
-    @Test func pkSignEmptyDigest() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">PK_SIGN:")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-    }
-
-    @Test func pkSignUnsupportedAlgorithm() {
-        let digest = Data(repeating: 0x42, count: 32)
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),RSA")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("RSA"))
-    }
-
-    @Test func pkSignNoIdentity() {
-        let digest = Data(repeating: 0x42, count: 32)
-        let (handler, _) = makeHandler(identityExists: false)
-        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("identity"))
-    }
-
-    @Test func pkSignNoCertificate() {
-        let digest = Data(repeating: 0x42, count: 32)
-        let (handler, _) = makeHandler(certificateExists: false)
-        let results = handler.handleMessage(">PK_SIGN:\(digest.base64EncodedString()),ECDSA")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("certificate"))
-    }
-
-    // MARK: - NEED-CERTIFICATE
-
-    @Test func needCertificateEnclaved() {
-        let certData = Data(repeating: 0xEE, count: 100)
-        let (handler, _) = makeHandler(exportedCertificate: certData)
-
-        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("certificate\r\n"))
-        #expect(results[0].contains("-----BEGIN CERTIFICATE-----"))
-        #expect(results[0].contains("-----END CERTIFICATE-----"))
-        #expect(results[0].hasSuffix("END\r\n"))
-    }
-
-    @Test func needCertificateNonEnclavedType() {
-        let (handler, _) = makeHandler()
-        let results = handler.handleMessage(">NEED-CERTIFICATE:other")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("enclaved"))
-    }
-
-    @Test func needCertificateNoIdentity() {
-        let (handler, _) = makeHandler(identityExists: false)
-        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("identity"))
-    }
-
-    @Test func needCertificateNoCertificate() {
-        let (handler, _) = makeHandler(certificateExists: false)
-        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("certificate"))
-    }
-
-    @Test func needCertificateExportReturnsNil() {
-        let (handler, _) = makeHandler(exportedCertificate: nil)
-        let results = handler.handleMessage(">NEED-CERTIFICATE:enclaved")
-        #expect(results.count == 1)
-        #expect(results[0].hasPrefix("ERROR:"))
-        #expect(results[0].contains("export"))
+    @Test func invalidJsonReturnsError() {
+        let (session, _) = makeSession()
+        let resp = request("not json at all", session: session)
+        #expect(resp["ok"] as? Bool == false)
     }
 }
 

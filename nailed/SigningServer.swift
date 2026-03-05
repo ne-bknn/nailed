@@ -13,24 +13,21 @@ class UnixSigningServer {
     private(set) var status = ServerStatus()
     let socketPath: String
     var onStatusChange: ((ServerStatus) -> Void)?
-    
+
     private var listener: NWListener?
-    private var handler: ManagementCommandHandler?
+    private var core: (any NailedCoreProtocol)?
     private var activeConnections: [NWConnection] = []
+    private var sessions: [ObjectIdentifier: Session] = [:]
     private let log: any LoggerProtocol
-    
+
     init(core: (any NailedCoreProtocol)?, socketPath: String = "/tmp/nailed_signing.sock", logger: any LoggerProtocol = NailedLogger.shared) {
         self.socketPath = socketPath
         self.log = logger
-        if let core { self.handler = ManagementCommandHandler(core: core, logger: logger) }
+        self.core = core
     }
-    
+
     func updateCore(_ core: (any NailedCoreProtocol)?) {
-        if let core {
-            self.handler = ManagementCommandHandler(core: core, logger: log)
-        } else {
-            self.handler = nil
-        }
+        self.core = core
     }
     
     func startServer() {
@@ -99,7 +96,8 @@ class UnixSigningServer {
             connection.cancel()
         }
         activeConnections.removeAll()
-        
+        sessions.removeAll()
+
         listener?.cancel()
         listener = nil
         status.isRunning = false
@@ -110,85 +108,88 @@ class UnixSigningServer {
     }
     
     private func handleNewConnection(_ connection: NWConnection) {
-        log.info("New management connection received", category: "server")
+        log.info("New connection received", category: "server")
         activeConnections.append(connection)
-        
+
+        if let core {
+            let session = Session(core: core, logger: log)
+            sessions[ObjectIdentifier(connection)] = session
+        }
+
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                self?.log.info("Management connection ready", category: "server")
+                self?.log.info("Connection ready", category: "server")
                 self?.receiveMessage(from: connection)
             case .failed(let error):
-                self?.log.error("Management connection failed: \(error)", category: "server")
+                self?.log.error("Connection failed: \(error)", category: "server")
                 self?.removeConnection(connection)
             case .cancelled:
-                self?.log.debug("Management connection cancelled", category: "server")
+                self?.log.debug("Connection cancelled", category: "server")
                 self?.removeConnection(connection)
             default:
                 break
             }
         }
-        
+
         connection.start(queue: .global(qos: .background))
     }
-    
+
     private func removeConnection(_ connection: NWConnection) {
+        sessions.removeValue(forKey: ObjectIdentifier(connection))
         if let index = activeConnections.firstIndex(where: { $0 === connection }) {
             activeConnections.remove(at: index)
         }
     }
     
     private func receiveMessage(from connection: NWConnection) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16384) { [weak self] data, _, isComplete, error in
             if let error = error {
                 self?.log.error("Receive error: \(error)", category: "server")
                 self?.removeConnection(connection)
                 return
             }
-            
+
             if let data = data, !data.isEmpty {
-                if let message = String(data: data, encoding: .utf8) {
-                    self?.log.debug("Received management message: '\(message)'", category: "server")
-                    self?.processMessage(message.trimmingCharacters(in: .whitespacesAndNewlines), connection: connection)
-                } else {
+                guard let message = String(data: data, encoding: .utf8) else {
                     self?.log.warning("Failed to decode message as UTF-8", category: "server")
-                    self?.sendResponse("ERROR: Invalid UTF-8 encoding\r\n", to: connection)
+                    self?.sendResponse(Data(#"{"ok":false,"error":"invalid UTF-8"}"#.utf8), to: connection)
+                    return
+                }
+
+                for line in message.split(separator: "\n") {
+                    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !trimmed.isEmpty else { continue }
+                    self?.processMessage(Data(trimmed.utf8), connection: connection)
                 }
             }
-            
+
             if isComplete {
-                self?.log.info("Management connection closed by client", category: "server")
+                self?.log.info("Connection closed by client", category: "server")
                 self?.removeConnection(connection)
             } else {
-                // Continue listening for more messages
                 self?.receiveMessage(from: connection)
             }
         }
     }
-    
-    private func processMessage(_ message: String, connection: NWConnection) {
-        guard let handler = handler else {
-            let error = "ERROR: No core available\r\n"
+
+    private func processMessage(_ data: Data, connection: NWConnection) {
+        guard let session = sessions[ObjectIdentifier(connection)] else {
+            let error = Data(#"{"ok":false,"error":"no core available"}"#.utf8)
             sendResponse(error, to: connection)
             return
         }
-        for response in handler.handleMessage(message) {
-            sendResponse(response, to: connection)
-        }
+        let response = session.handleRequest(data)
+        sendResponse(response, to: connection)
     }
-    
-    private func sendResponse(_ response: String, to connection: NWConnection) {
-        guard let data = response.data(using: .utf8) else {
-            log.error("Failed to encode response as UTF-8", category: "server")
-            return
-        }
-        connection.send(content: data, completion: .contentProcessed { [weak self] error in
+
+    private func sendResponse(_ data: Data, to connection: NWConnection) {
+        var payload = data
+        payload.append(contentsOf: [0x0A]) // newline delimiter
+        connection.send(content: payload, completion: .contentProcessed { [weak self] error in
             if let error = error {
                 self?.log.error("Send error: \(error)", category: "server")
-            } else {
-                self?.log.debug("Response sent successfully, waiting for more requests", category: "server")
             }
-            // Keep connection alive for more requests
         })
     }
     

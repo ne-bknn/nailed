@@ -4,6 +4,8 @@ import Foundation
 import ArgumentParser
 import ServiceManagement
 
+extension KeyProtectionType: ExpressibleByArgument {}
+
 struct NailedCommand: ParsableCommand {
 
     static let configuration = CommandConfiguration(
@@ -70,7 +72,9 @@ extension NailedCommand {
                 return
             }
 
+            let protection = try core.protectionType
             print("Identity: present")
+            print("  Protection:  \(protection.rawValue)")
             print("  Private key available in Secure Enclave")
 
             guard try core.hasCertificate() else {
@@ -110,6 +114,9 @@ extension NailedCommand {
             abstract: "Generate a new Secure Enclave key pair"
         )
 
+        @Option(name: [.short, .customLong("type")], help: "Key protection type (\(KeyProtectionType.allCases.map(\.rawValue).joined(separator: ", "))).")
+        var type: KeyProtectionType = .userPresence
+
         @Flag(name: [.short, .long], help: "Skip confirmation when replacing an existing identity.")
         var force = false
 
@@ -117,7 +124,7 @@ extension NailedCommand {
             let log = NailedLogger.shared
             let core = try initCore()
 
-            log.info("CLI command: generate-identity", category: "cli")
+            log.info("CLI command: generate-identity (type=\(type.rawValue))", category: "cli")
 
             if try core.hasIdentity() {
                 if !force {
@@ -130,8 +137,9 @@ extension NailedCommand {
                 }
             }
 
-            try core.generateIdentity()
+            try core.generateIdentity(protectionType: type)
             print("Identity generated successfully.")
+            print("  Protection: \(type.rawValue)")
             print("  A new EC P-256 key pair has been created in the Secure Enclave.")
             print("  Next step: generate a CSR with 'generate-csr <common-name>'")
         }

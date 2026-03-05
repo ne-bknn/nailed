@@ -19,13 +19,13 @@ BORINGSSL_INCLUDE = $(BORINGSSL_DIR)/include
 BORINGSSL_LIBS = $(BORINGSSL_BUILD)/libcrypto.a
 
 # Include paths
-INCLUDES = -I. -Ivendor/pkcs11 -I$(BORINGSSL_INCLUDE)
+INCLUDES = -I. -Ivendor/pkcs11 -Ivendor/cjson -I$(BORINGSSL_INCLUDE)
 
 # Link against BoringSSL
 LDFLAGS += $(BORINGSSL_LIBS) -lstdc++
 
 # Source files
-SRCS = nailed_pkcs11.c nailed_client.c
+SRCS = nailed_pkcs11.c nailed_client.c vendor/cjson/cJSON.c
 OBJS = $(SRCS:.c=.o)
 
 # Output
@@ -52,7 +52,8 @@ $(DYLIB): $(OBJS) $(BORINGSSL_LIBS)
 
 # Dependencies
 nailed_pkcs11.o: nailed_pkcs11.c nailed_pkcs11_platform.h nailed_client.h
-nailed_client.o: nailed_client.c nailed_client.h
+nailed_client.o: nailed_client.c nailed_client.h vendor/cjson/cJSON.h
+vendor/cjson/cJSON.o: vendor/cjson/cJSON.c vendor/cjson/cJSON.h
 
 clean:
 	rm -f $(OBJS) $(DYLIB)

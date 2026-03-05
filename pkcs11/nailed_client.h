@@ -32,7 +32,15 @@ typedef enum {
     NAILED_ERROR_SIGNING_FAILED = -6,
     NAILED_ERROR_BUFFER_TOO_SMALL = -7,
     NAILED_ERROR_NO_IDENTITY = -8,
+    NAILED_ERROR_PIN_INCORRECT = -9,
 } nailed_result_t;
+
+/* Key protection type (mirrors Swift KeyProtectionType) */
+typedef enum {
+    NAILED_KEY_TYPE_UNKNOWN = 0,
+    NAILED_KEY_TYPE_USER_PRESENCE = 1,
+    NAILED_KEY_TYPE_APPLICATION_PASSWORD = 2,
+} nailed_key_type_t;
 
 /* Client context */
 typedef struct nailed_client {
@@ -47,6 +55,10 @@ typedef struct nailed_client {
     /* Cached public key info */
     uint8_t *ec_point;
     size_t ec_point_len;
+
+    /* Cached key type */
+    nailed_key_type_t key_type;
+    bool key_type_cached;
 } nailed_client_t;
 
 /* Initialize client with socket path (NULL for default) */
@@ -84,9 +96,17 @@ nailed_result_t nailed_client_get_ec_point(nailed_client_t *client,
 /* Get protocol version */
 nailed_result_t nailed_client_get_version(nailed_client_t *client, int *version);
 
+/* Send PIN to nailed for application-password keys */
+nailed_result_t nailed_client_login(nailed_client_t *client,
+                                     const uint8_t *pin,
+                                     size_t pin_len);
+
+/* Query the key protection type from nailed */
+nailed_result_t nailed_client_get_key_type(nailed_client_t *client,
+                                            nailed_key_type_t *type_out);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* _NAILED_CLIENT_H_ */
-

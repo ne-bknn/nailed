@@ -1,9 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 import Foundation
 import CryptoKit
+import LocalAuthentication
 import X509
 import Security
 import SwiftASN1
+
+public enum KeyProtectionType: String, CaseIterable, Codable, CustomStringConvertible {
+    case userPresence = "user-presence"
+    case applicationPassword = "application-password"
+
+    public var description: String { rawValue }
+}
 
 public enum NailedCoreError: Error, LocalizedError {
     case identityNotFound
@@ -86,15 +94,16 @@ public struct CertificateInfo {
 
 public protocol NailedCoreProtocol {
     func hasIdentity() throws -> Bool
-    func generateIdentity() throws
+    func generateIdentity(protectionType: KeyProtectionType) throws
     func hasCertificate() throws -> Bool
     func getCertificateInfo() throws -> CertificateInfo?
     func generateCSR(commonName: String) throws -> Data
     func importCertificate(certificateData: Data) throws
     func exportCertificate() throws -> Data?
     func exportPublicKey() throws -> Data?
-    func sign(data: Data) throws -> Data
+    func sign(data: Data, password: Data?) throws -> Data
     func deleteIdentity() throws
+    var protectionType: KeyProtectionType { get throws }
 }
 
 public struct NailedCore: NailedCoreProtocol {
@@ -133,24 +142,29 @@ public struct NailedCore: NailedCoreProtocol {
     }
     
     /// Generate a new key pair in the Secure Enclave
-    private func generateKey() throws -> SecKey {
-        log.info("Generating new key pair in Secure Enclave", category: "core")
-        // Check Secure Enclave availability
+    private func generateKey(protectionType: KeyProtectionType) throws -> SecKey {
+        log.info("Generating new key pair in Secure Enclave (protection: \(protectionType.rawValue))", category: "core")
         guard isSecureEnclaveAvailable() else {
             log.error("Secure Enclave is not available", category: "core")
             throw NailedCoreError.secureEnclaveUnavailable
         }
-        
+
+        let acFlags: SecAccessControlCreateFlags = switch protectionType {
+        case .userPresence:      [.privateKeyUsage, .userPresence]
+        case .applicationPassword: [.privateKeyUsage, .applicationPassword]
+        }
+
         guard let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-            [.privateKeyUsage, .userPresence],
+            acFlags,
             nil
         ) else {
             throw NailedCoreError.accessControlFailed
         }
 
         let tagData = Data(tag.utf8)
+        let labelValue = "\(tag):\(protectionType.rawValue)"
 
         let attributes: NSDictionary = [
             kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom,
@@ -158,13 +172,11 @@ public struct NailedCore: NailedCoreProtocol {
             kSecAttrTokenID: kSecAttrTokenIDSecureEnclave,
             kSecAttrApplicationLabel: tag,
             kSecAttrApplicationTag: tagData,
-            kSecAttrLabel: tag,
-            // kSecAttrAccessGroup: keychainAccessGroup,
+            kSecAttrLabel: labelValue,
             kSecPrivateKeyAttrs: [
                 kSecAttrIsPermanent: true,
                 kSecAttrAccessControl: access,
                 kSecAttrIsExtractable: false,
-                // kSecAttrAccessGroup: keychainAccessGroup
             ]
         ]
 
@@ -173,7 +185,7 @@ public struct NailedCore: NailedCoreProtocol {
             if let cfError = error?.takeRetainedValue() {
                 let nsError = cfError as Error as NSError
                 log.error("SecKeyCreateRandomKey failed (code \(nsError.code)): \(nsError.localizedDescription)", category: "core")
-                if nsError.code == -34018 { // errSecMissingEntitlement
+                if nsError.code == -34018 {
                     throw NailedCoreError.missingEntitlement
                 }
                 throw NailedCoreError.keychainError(
@@ -189,17 +201,22 @@ public struct NailedCore: NailedCoreProtocol {
     }
     
     /// Get the private key from the Secure Enclave
-    private func getPrivateKey() throws -> SecKey? {
+    private func getPrivateKey(password: Data? = nil) throws -> SecKey? {
         let tagData = Data(tag.utf8)
 
-        let query: [String: Any] = [
+        var query: [String: Any] = [
             kSecClass              as String: kSecClassKey,
             kSecAttrKeyClass       as String: kSecAttrKeyClassPrivate,
             kSecAttrApplicationTag as String: tagData,
             kSecAttrKeyType        as String: kSecAttrKeyTypeECSECPrimeRandom,
-            // kSecAttrAccessGroup    as String: keychainAccessGroup,
-            kSecReturnRef          as String: kCFBooleanTrue
+            kSecReturnRef          as String: kCFBooleanTrue,
         ]
+
+        if let password {
+            let context = LAContext()
+            context.setCredential(password, type: .applicationPassword)
+            query[kSecUseAuthenticationContext as String] = context
+        }
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
@@ -211,7 +228,7 @@ public struct NailedCore: NailedCoreProtocol {
             return nil
         default:
             try Self.throwKeychainError(status, operation: "retrieve private key")
-            return nil // unreachable, throwKeychainError always throws for non-success
+            return nil
         }
     }
     
@@ -347,13 +364,41 @@ public struct NailedCore: NailedCoreProtocol {
     public func hasIdentity() throws -> Bool {
         return try getPrivateKey() != nil
     }
-    
+
+    /// Read the protection type stored in kSecAttrLabel on the key.
+    /// Legacy keys without a suffix default to `.userPresence`.
+    public var protectionType: KeyProtectionType {
+        get throws {
+            let tagData = Data(tag.utf8)
+            let query: [String: Any] = [
+                kSecClass              as String: kSecClassKey,
+                kSecAttrKeyClass       as String: kSecAttrKeyClassPrivate,
+                kSecAttrApplicationTag as String: tagData,
+                kSecAttrKeyType        as String: kSecAttrKeyTypeECSECPrimeRandom,
+                kSecReturnAttributes   as String: true,
+            ]
+
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+
+            guard status == errSecSuccess,
+                  let attrs = item as? [String: Any],
+                  let label = attrs[kSecAttrLabel as String] as? String else {
+                return .userPresence
+            }
+
+            if let range = label.range(of: ":"), !label[range.upperBound...].isEmpty {
+                return KeyProtectionType(rawValue: String(label[range.upperBound...])) ?? .userPresence
+            }
+            return .userPresence
+        }
+    }
+
     /// Generate the single identity with a secure enclave key pair
-    public func generateIdentity() throws {
-        log.info("Generating new identity", category: "core")
-        // Delete any existing identity first
+    public func generateIdentity(protectionType: KeyProtectionType) throws {
+        log.info("Generating new identity (protection: \(protectionType.rawValue))", category: "core")
         try? deleteIdentity()
-        _ = try generateKey()
+        _ = try generateKey(protectionType: protectionType)
     }
     
     /// Import a certificate for the identity
@@ -404,11 +449,11 @@ public struct NailedCore: NailedCoreProtocol {
     }
     
     /// Sign data using the identity's private key
-    public func sign(data: Data) throws -> Data {
-        guard let privateKey = try getPrivateKey() else {
+    public func sign(data: Data, password: Data? = nil) throws -> Data {
+        guard let privateKey = try getPrivateKey(password: password) else {
             throw NailedCoreError.privateKeyNotFound
         }
-        
+
         return try sign(digest: data, privateKey: privateKey)
     }
     

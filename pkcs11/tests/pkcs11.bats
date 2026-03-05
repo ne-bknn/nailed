@@ -6,6 +6,10 @@
 #   - brew install opensc bats-core
 #   - nailed app running with identity and certificate configured
 #
+# Environment variables:
+#   PKCS11_MODULE    - path to the PKCS#11 .dylib (default: ./libnailed_pkcs11.dylib)
+#   NAILED_TEST_PIN  - PIN for application-password key tests (skip PIN tests if unset)
+#
 # Run: bats tests/pkcs11.bats
 
 # Path to the PKCS#11 module
@@ -32,6 +36,34 @@ setup() {
 pkcs11_tool() {
     pkcs11-tool --module "$PKCS11_MODULE" "$@"
 }
+
+# Detect key type from token info output.
+# Sets KEY_TYPE to "application-password" or "user-presence".
+get_key_type() {
+    local output
+    output=$(pkcs11_tool --list-token-slots 2>&1) || true
+    if [[ "$output" == *"login required"* ]] || [[ "$output" == *"LOGIN_REQUIRED"* ]]; then
+        echo "application-password"
+    else
+        echo "user-presence"
+    fi
+}
+
+# Wrapper that auto-adds --login --pin when the key type requires it.
+pkcs11_tool_with_auth() {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" == "application-password" ]]; then
+        if [[ -z "${NAILED_TEST_PIN:-}" ]]; then
+            skip "NAILED_TEST_PIN not set (required for application-password key)"
+        fi
+        pkcs11_tool --login --pin "$NAILED_TEST_PIN" "$@"
+    else
+        pkcs11_tool "$@"
+    fi
+}
+
+# ===== Basic module tests =====
 
 @test "module loads successfully" {
     run pkcs11_tool --show-info
@@ -64,7 +96,7 @@ pkcs11_tool() {
     [[ "$output" == *"sign"* ]]
 }
 
-# The following tests require nailed app to be running with an identity configured
+# ===== Token info and key type tests =====
 
 @test "token info available when nailed running" {
     run pkcs11_tool --list-token-slots
@@ -72,19 +104,45 @@ pkcs11_tool() {
         skip "nailed app not running or no token present"
     fi
     [ "$status" -eq 0 ]
+    # Token flags should include either protected auth path or login required
+    [[ "$output" == *"protected"* ]] || [[ "$output" == *"login required"* ]] || \
+    [[ "$output" == *"LOGIN_REQUIRED"* ]] || [[ "$output" == *"PROTECTED"* ]]
 }
 
+@test "token info shows protected auth path for user-presence key" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "user-presence" ]]; then
+        skip "key type is $kt, not user-presence"
+    fi
+    run pkcs11_tool --list-token-slots
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"protected"* ]] || [[ "$output" == *"PROTECTED"* ]]
+}
+
+@test "token info shows login required for application-password key" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "application-password" ]]; then
+        skip "key type is $kt, not application-password"
+    fi
+    run pkcs11_tool --list-token-slots
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"login required"* ]] || [[ "$output" == *"LOGIN_REQUIRED"* ]]
+}
+
+# ===== Object listing tests =====
+
 @test "can list objects when token present" {
-    run pkcs11_tool --list-objects
+    run pkcs11_tool_with_auth --list-objects
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
-    # Should succeed even if no objects (empty list is OK)
     [ "$status" -eq 0 ]
 }
 
 @test "private key object exists when identity configured" {
-    run pkcs11_tool --list-objects --type privkey
+    run pkcs11_tool_with_auth --list-objects --type privkey
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
@@ -96,7 +154,7 @@ pkcs11_tool() {
 }
 
 @test "public key object exists when identity configured" {
-    run pkcs11_tool --list-objects --type pubkey
+    run pkcs11_tool_with_auth --list-objects --type pubkey
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
@@ -108,7 +166,7 @@ pkcs11_tool() {
 }
 
 @test "certificate object exists when identity configured" {
-    run pkcs11_tool --list-objects --type cert
+    run pkcs11_tool_with_auth --list-objects --type cert
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
@@ -120,8 +178,7 @@ pkcs11_tool() {
 }
 
 @test "can read certificate" {
-    # Try to read certificate (must specify label or id)
-    run pkcs11_tool --read-object --type cert --label SecureEnclave --output-file /tmp/nailed_test_cert.der
+    run pkcs11_tool_with_auth --read-object --type cert --label SecureEnclave --output-file /tmp/nailed_test_cert.der
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         skip "nailed app not running or no token present"
     fi
@@ -139,12 +196,12 @@ pkcs11_tool() {
     rm -f /tmp/nailed_test_cert.der
 }
 
+# ===== Signing tests =====
+
 @test "can perform ECDSA signature" {
-    # Create test data (32-byte SHA-256 hash)
     echo -n "0123456789abcdef0123456789abcdef" > /tmp/nailed_test_data.bin
     
-    # Sign with ECDSA
-    run pkcs11_tool --sign --mechanism ECDSA --input-file /tmp/nailed_test_data.bin --output-file /tmp/nailed_test_sig.bin
+    run pkcs11_tool_with_auth --sign --mechanism ECDSA --input-file /tmp/nailed_test_data.bin --output-file /tmp/nailed_test_sig.bin
     
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         rm -f /tmp/nailed_test_data.bin /tmp/nailed_test_sig.bin
@@ -155,44 +212,17 @@ pkcs11_tool() {
         skip "No private key configured in nailed"
     fi
     
-    # Note: This may prompt for biometric authentication
     [ "$status" -eq 0 ]
-    
-    # Check that signature file was created and has content
     [ -f /tmp/nailed_test_sig.bin ]
     [ -s /tmp/nailed_test_sig.bin ]
     
     rm -f /tmp/nailed_test_data.bin /tmp/nailed_test_sig.bin
 }
 
-@test "open and close session" {
-    # This is implicitly tested by all other operations
-    # pkcs11-tool opens/closes sessions for each operation
-    run pkcs11_tool --list-slots
-    [ "$status" -eq 0 ]
-}
-
-@test "module reports correct version" {
-    run pkcs11_tool --show-info
-    [ "$status" -eq 0 ]
-    # Should report PKCS#11 version 2.40
-    [[ "$output" == *"2.40"* ]] || [[ "$output" == *"2.4"* ]]
-}
-
-@test "key type is EC/ECDSA" {
-    run pkcs11_tool --list-objects --type privkey
-    if [[ "$status" -ne 0 ]] || [[ "$output" == *"not present"* ]] || [[ -z "$output" ]]; then
-        skip "No private key available"
-    fi
-    [[ "$output" == *"EC"* ]]
-}
-
 @test "can perform ECDSA-SHA256 multi-part signature" {
-    # Create test data (arbitrary length - will be hashed by the module)
     echo "This is test data for ECDSA-SHA256 multi-part signing" > /tmp/nailed_test_multipart.txt
     
-    # Sign with ECDSA-SHA256 (uses C_SignUpdate + C_SignFinal internally)
-    run pkcs11_tool --sign --mechanism ECDSA-SHA256 --input-file /tmp/nailed_test_multipart.txt --output-file /tmp/nailed_test_multipart_sig.bin
+    run pkcs11_tool_with_auth --sign --mechanism ECDSA-SHA256 --input-file /tmp/nailed_test_multipart.txt --output-file /tmp/nailed_test_multipart_sig.bin
     
     if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
         rm -f /tmp/nailed_test_multipart.txt /tmp/nailed_test_multipart_sig.bin
@@ -203,14 +233,10 @@ pkcs11_tool() {
         skip "No private key configured in nailed"
     fi
     
-    # Note: This may prompt for biometric authentication
     [ "$status" -eq 0 ]
-    
-    # Check that signature file was created and has content
     [ -f /tmp/nailed_test_multipart_sig.bin ]
     [ -s /tmp/nailed_test_multipart_sig.bin ]
     
-    # Signature should be between 64-72 bytes for ECDSA P-256
     sig_size=$(wc -c < /tmp/nailed_test_multipart_sig.bin | tr -d ' ')
     [ "$sig_size" -ge 64 ]
     [ "$sig_size" -le 72 ]
@@ -219,38 +245,123 @@ pkcs11_tool() {
 }
 
 @test "can verify ECDSA-SHA256 signature with openssl" {
-    # Skip if openssl not available
     if ! command -v openssl &> /dev/null; then
         skip "openssl not found"
     fi
     
-    # Create test data
     echo "Test data for signature verification" > /tmp/nailed_verify_data.txt
     
-    # Sign with ECDSA-SHA256
-    run pkcs11_tool --sign --mechanism ECDSA-SHA256 --input-file /tmp/nailed_verify_data.txt --output-file /tmp/nailed_verify_sig.bin
+    run pkcs11_tool_with_auth --sign --mechanism ECDSA-SHA256 --input-file /tmp/nailed_verify_data.txt --output-file /tmp/nailed_verify_sig.bin
     
     if [[ "$status" -ne 0 ]]; then
         rm -f /tmp/nailed_verify_data.txt /tmp/nailed_verify_sig.bin
         skip "Signing failed - token may not be available"
     fi
     
-    # Get the certificate
-    run pkcs11_tool --read-object --type cert --label SecureEnclave --output-file /tmp/nailed_verify_cert.der
+    run pkcs11_tool_with_auth --read-object --type cert --label SecureEnclave --output-file /tmp/nailed_verify_cert.der
     if [[ "$status" -ne 0 ]]; then
         rm -f /tmp/nailed_verify_data.txt /tmp/nailed_verify_sig.bin
         skip "Could not read certificate"
     fi
     
-    # Extract public key from certificate
     openssl x509 -inform DER -in /tmp/nailed_verify_cert.der -pubkey -noout > /tmp/nailed_verify_pubkey.pem
     
-    # Verify the signature (need to convert from raw ECDSA to DER format for openssl)
-    # Note: pkcs11-tool outputs raw R||S format, openssl expects DER
-    # For now just check the signature was created successfully
     [ -f /tmp/nailed_verify_sig.bin ]
     [ -s /tmp/nailed_verify_sig.bin ]
     
     rm -f /tmp/nailed_verify_data.txt /tmp/nailed_verify_sig.bin /tmp/nailed_verify_cert.der /tmp/nailed_verify_pubkey.pem
 }
 
+# ===== PIN / login tests (application-password only) =====
+
+@test "login with PIN succeeds on application-password key" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "application-password" ]]; then
+        skip "key type is $kt, not application-password"
+    fi
+    if [[ -z "${NAILED_TEST_PIN:-}" ]]; then
+        skip "NAILED_TEST_PIN not set"
+    fi
+
+    run pkcs11_tool --login --pin "$NAILED_TEST_PIN" --list-objects
+    [ "$status" -eq 0 ]
+}
+
+@test "login with wrong PIN fails" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "application-password" ]]; then
+        skip "key type is $kt, not application-password"
+    fi
+
+    run pkcs11_tool --login --pin "definitely_wrong_pin_value" --list-objects
+    # Should fail with a PIN error
+    [ "$status" -ne 0 ] || [[ "$output" == *"error"* ]] || [[ "$output" == *"PIN"* ]]
+}
+
+@test "sign after login with PIN succeeds" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "application-password" ]]; then
+        skip "key type is $kt, not application-password"
+    fi
+    if [[ -z "${NAILED_TEST_PIN:-}" ]]; then
+        skip "NAILED_TEST_PIN not set"
+    fi
+
+    echo -n "0123456789abcdef0123456789abcdef" > /tmp/nailed_pin_sign_data.bin
+
+    run pkcs11_tool --login --pin "$NAILED_TEST_PIN" --sign --mechanism ECDSA \
+        --input-file /tmp/nailed_pin_sign_data.bin --output-file /tmp/nailed_pin_sign_sig.bin
+
+    if [[ "$status" -ne 0 ]] && [[ "$output" == *"not present"* ]]; then
+        rm -f /tmp/nailed_pin_sign_data.bin /tmp/nailed_pin_sign_sig.bin
+        skip "nailed app not running or no token present"
+    fi
+
+    [ "$status" -eq 0 ]
+    [ -f /tmp/nailed_pin_sign_sig.bin ]
+    [ -s /tmp/nailed_pin_sign_sig.bin ]
+
+    rm -f /tmp/nailed_pin_sign_data.bin /tmp/nailed_pin_sign_sig.bin
+}
+
+@test "sign without login fails on application-password key" {
+    local kt
+    kt=$(get_key_type)
+    if [[ "$kt" != "application-password" ]]; then
+        skip "key type is $kt, not application-password"
+    fi
+
+    echo -n "0123456789abcdef0123456789abcdef" > /tmp/nailed_nologin_data.bin
+
+    run pkcs11_tool --sign --mechanism ECDSA \
+        --input-file /tmp/nailed_nologin_data.bin --output-file /tmp/nailed_nologin_sig.bin
+
+    # Should fail - login required but not performed
+    [ "$status" -ne 0 ] || [[ "$output" == *"error"* ]]
+
+    rm -f /tmp/nailed_nologin_data.bin /tmp/nailed_nologin_sig.bin
+}
+
+# ===== Misc tests =====
+
+@test "open and close session" {
+    run pkcs11_tool --list-slots
+    [ "$status" -eq 0 ]
+}
+
+@test "module reports correct version" {
+    run pkcs11_tool --show-info
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"2.40"* ]] || [[ "$output" == *"2.4"* ]]
+}
+
+@test "key type is EC/ECDSA" {
+    run pkcs11_tool_with_auth --list-objects --type privkey
+    if [[ "$status" -ne 0 ]] || [[ "$output" == *"not present"* ]] || [[ -z "$output" ]]; then
+        skip "No private key available"
+    fi
+    [[ "$output" == *"EC"* ]]
+}
